@@ -86,7 +86,7 @@ Currently, the primary installation method is by running from the source code.
 ### 🐍 From Source (Linux/macOS)
 The `launcher.sh` script will automatically create a virtual environment and install all dependencies.
 ```bash
-git clone https://github.com/[YourUsername]/Tkonverter.git
+git clone https://github.com/Loganavter/Tkonverter.git
 cd Tkonverter
 chmod +x launcher.sh
 ./launcher.sh run
