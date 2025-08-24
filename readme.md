@@ -137,6 +137,8 @@ A full-scale refactoring was necessary. Gemini analyzed the entire project conte
 For the final 20%—plus a few features adapted from my previous project, Improve-ImgSLI—I returned to Gemini. While Sonnet 4 is brilliant for executing large, well-defined tasks almost autonomously, it's less cost-effective for the meticulous process of debugging subtle issues. The final 2-3 days were an exhausting but necessary process of chasing down very elusive, often single-line bugs hidden within the new, clean architecture. It was a tedious process of analyzing loggers to find the root cause.
 
 Ultimately, the application was ready after about a week. This process also resulted in the creation of a reusable Fluent Design UI toolkit, which will significantly speed up future projects. Furthermore, it was a valuable experience in integrating AI components into desktop software. Now, only distribution remains.
+
+About name: Tkonverter - Telegram + (Kool)converter. KDE vibes.
 </details>
 
 ---
