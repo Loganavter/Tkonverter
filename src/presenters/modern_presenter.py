@@ -391,7 +391,7 @@ def _generate_hardcoded_preview_data(config: dict) -> dict:
     elif profile == "personal":
 
         real_my_name = tr("Preview: Misha")
-        real_partner_name = tr("Preview: Alisa")
+        real_partner_name = tr("Preview: Alice")
 
         my_alias = config.get("my_name", tr("Me"))
         partner_alias = config.get("partner_name", tr("Sister"))
