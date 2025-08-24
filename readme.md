@@ -18,8 +18,6 @@
   </a>
 </p>
 
-<p align="center"><strong>An intuitive, open-source tool for advanced image comparison and interaction.</strong></p>
-
 ---
 
 ## 📸 Screenshot
