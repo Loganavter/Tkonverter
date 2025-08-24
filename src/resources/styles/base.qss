@@ -1,0 +1,199 @@
+/* --- File: ./resources/styles/base.qss --- */
+QCheckBox {
+    spacing: 6px;
+}
+QCheckBox::indicator { width: 0px; height: 0px; }
+
+QLabel, QRadioButton, QCheckBox {
+    color: @dialog.text;
+}
+
+/* Styles for group header (specific to tkonverter) */
+QLabel#StyledGroupTitle {
+    color: @dialog.text;
+    background-color: @Window; /* Important for overlapping border */
+    padding-left: 5px;
+    padding-right: 5px;
+    font-weight: bold;
+    qproperty-alignment: 'AlignVCenter | AlignLeft';
+}
+
+/* Styles for group border (specific to tkonverter) */
+QFrame#StyledGroupFrame {
+    border: 1px solid @dialog.border;
+    border-radius: 6px;
+}
+
+/* --- Styles for dialogs (Settings, Help, Export) --- */
+QDialog#SettingsDialog,
+QDialog#HelpDialog,
+QDialog#ExportDialog {
+    background-color: @dialog.background;
+}
+
+QDialog QLabel, 
+QDialog QRadioButton, 
+QDialog QCheckBox {
+    color: @dialog.text;
+}
+
+QDialog QLineEdit,
+QDialog QSpinBox, 
+QDialog QComboBox {
+    background-color: @dialog.input.background;
+    color: @dialog.text;
+    border: 1px solid @dialog.border;
+    border-radius: 4px;
+    padding: 4px;
+}
+
+QDialog QSpinBox::up-button, 
+QDialog QSpinBox::down-button, 
+QDialog QComboBox::drop-down {
+    border: none;
+    background-color: transparent;
+}
+
+QDialog QPushButton {
+    background-color: @dialog.button.background;
+    color: @dialog.text;
+    border: 1px solid @dialog.border;
+    border-radius: 4px;
+    padding: 5px 15px;
+}
+
+QDialog QPushButton:hover {
+    background-color: @dialog.button.hover;
+}
+
+/* --- Styles for custom widgets --- */
+/* Base style for all icon-button */
+QWidget[class="icon-button"] {
+    background-color: @button.default.background;
+    border: 1px solid @button.default.border;
+    border-radius: 6px;
+}
+
+QWidget[class="icon-button"]:hover,
+QWidget[class="icon-button"][state="hover"] {
+    background-color: @button.default.background.hover;
+}
+
+QWidget[class="icon-button"]:pressed,
+QWidget[class="icon-button"][state="pressed"] {
+    background-color: @button.default.background.pressed;
+}
+
+/* --- Styles for CustomButton --- */
+/* Default style */
+QWidget[class="custom-button"] {
+    background-color: @button.default.background;
+    border: 1px solid @button.default.border;
+    border-radius: 6px;
+    color: @dialog.text;
+}
+QWidget[class="custom-button"] QLabel {
+    color: @dialog.text;
+    background: transparent;
+}
+QWidget[class="custom-button"]:hover,
+QWidget[class="custom-button"][state="hover"] {
+    background-color: @button.default.background.hover;
+}
+QWidget[class="custom-button"]:pressed,
+QWidget[class="custom-button"][state="pressed"] {
+    background-color: @button.default.background.pressed;
+}
+
+/* "Primary" style */
+QWidget[class="custom-button"][class~="primary"] {
+    background-color: @button.primary.background;
+    border: 1px solid @button.primary.border;
+    color: @button.primary.text;
+}
+QWidget[class="custom-button"][class~="primary"] QLabel {
+    color: @button.primary.text;
+    background: transparent;
+}
+QWidget[class="custom-button"][class~="primary"]:hover,
+QWidget[class="custom-button"][class~="primary"][state="hover"] {
+    background-color: @button.primary.background.hover;
+}
+QWidget[class="custom-button"][class~="primary"]:pressed,
+QWidget[class="custom-button"][class~="primary"][state="pressed"] {
+    background-color: @button.primary.background.pressed;
+}
+
+/* Style for CustomLineEdit */
+QLineEdit[custom-line-edit="true"] {
+    background-color: @dialog.input.background;
+    color: @dialog.text;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+QLineEdit[custom-line-edit="true"]:focus {
+    border: none;
+}
+
+/* --- NEW BLOCK: Styles for log terminal --- */
+QTextEdit#logOutput {
+    border: 1px solid @dialog.border;
+    border-radius: 6px;
+    background-color: @dialog.input.background;
+    color: @dialog.text;
+    padding: 5px;
+}
+
+/* --- Styles for preview widget --- */
+QTextEdit#previewTextEdit {
+    border: 1px solid @dialog.border;
+    border-radius: 6px;
+    background-color: @dialog.input.background;
+    color: @dialog.text;
+    padding: 5px;
+}
+
+/* --- Styles for HelpDialog --- */
+QDialog#HelpDialog QListWidget {
+    background-color: @help.nav.background;
+    border-right: 1px solid @help.nav.border;
+    font-size: 14px;
+    padding-top: 5px;
+    outline: none;
+    alternate-background-color: transparent;
+    selection-background-color: transparent;
+}
+
+QDialog#HelpDialog QListWidget::item {
+    background-color: transparent;
+    color: @dialog.text;
+    padding: 8px 15px;
+    border: none;
+    outline: none;
+    border-radius: 4px;
+}
+
+QDialog#HelpDialog QListWidget::item:hover {
+    background-color: @help.nav.hover;
+    border-radius: 4px;
+}
+
+QDialog#HelpDialog QListWidget::item:selected {
+    background-color: @help.nav.selected;
+    color: @help.nav.selected.text;
+    border-radius: 4px;
+}
+
+/* Force same style for all selection states to prevent double borders */
+QDialog#HelpDialog QListWidget::item:selected:active,
+QDialog#HelpDialog QListWidget::item:selected:!active,
+QDialog#HelpDialog QListWidget::item:selected:focus,
+QDialog#HelpDialog QListWidget::item:selected:!focus {
+    background-color: @help.nav.selected;
+    color: @help.nav.selected.text;
+    border: none;
+    outline: none;
+    border-radius: 4px;
+}
+
