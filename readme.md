@@ -116,7 +116,7 @@ The core application is complete and stable. The primary focus now is on making 
 
 ## 🤝 Contributing <a name="contributing"></a>
 
-This project is in its early stages, so all contributions are highly welcome! Feel free to create [Issues](https://github.com/[YourUsername]/Tkonverter/issues) with bug reports or feature suggestions, and submit [Pull Requests](https://github.com/[YourUsername]/Tkonverter/pulls).
+This project is in its early stages, so all contributions are highly welcome! Feel free to create [Issues](https://github.com/Loganavter/Tkonverter/issues) with bug reports or feature suggestions, and submit [Pull Requests](https://github.com/Loganavter/Tkonverter/pulls).
 
 ---
 
