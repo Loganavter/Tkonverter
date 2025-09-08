@@ -18,13 +18,13 @@ from core.view_models import ChartViewModel, SunburstSegment
 
 logger = logging.getLogger(__name__)
 
-YEAR_SATURATION = 0.35
-MONTH_SATURATION = 0.55
-DAY_SATURATION = 0.75
+YEAR_SATURATION = 0.85
+MONTH_SATURATION = 0.70
+DAY_SATURATION = 0.60
 
-YEAR_BRIGHTNESS = 0.85
-MONTH_BRIGHTNESS = 0.95
-DAY_BRIGHTNESS = 1.0
+YEAR_BRIGHTNESS = 0.95
+MONTH_BRIGHTNESS = 0.85
+DAY_BRIGHTNESS = 0.75
 
 DARKEN_FACTOR = 0.7
 
@@ -193,7 +193,7 @@ class ChartService:
 
         current_angle = start_angle
 
-        children_to_display = aggregate_children_for_view(node, force_full_detail=(self.get_node_absolute_depth(node) > 0))
+        children_to_display = aggregate_children_for_view(node, force_full_detail=(self.get_node_absolute_depth(node) > start_absolute_depth))
 
         for child in children_to_display:
             child_absolute_depth = self.get_node_absolute_depth(child)
@@ -220,7 +220,10 @@ class ChartService:
             )
             segments.append(segment)
 
-            if child.children or (hasattr(child, "aggregated_children") and child.aggregated_children):
+            if (
+                (child.children or (hasattr(child, "aggregated_children") and child.aggregated_children))
+                and getattr(child, 'date_level', None) != 'others'
+            ):
                 self._build_segments_recursive_normalized(
                     child, current_angle, current_angle + sweep_angle, start_absolute_depth, segments, disabled_nodes
                 )

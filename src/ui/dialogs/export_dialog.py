@@ -102,7 +102,7 @@ class ExportDialog(QDialog):
 
         self.edit_dir.textChanged.connect(self._update_final_filename_preview)
 
-        self.edit_name.textChanged.connect(self._update_final_filename_preview)
+        self.edit_name.editingFinished.connect(self._update_final_filename_preview)
 
         initial_name = self.suggested_filename or tr("chat_history")
         self.edit_name.setText(initial_name)

@@ -45,8 +45,18 @@ def parse_reaction_from_dict(reaction_data: Dict[str, Any]) -> Reaction:
             logger.warning(f"Error parsing reaction author: {e}")
             continue
 
+    emoji_text = ""
+
+    if reaction_data.get("type") == "custom_emoji":
+
+        from resources.translations import tr
+        emoji_text = f"{tr('Custom')} {tr('Emoji')}"
+    else:
+
+        emoji_text = reaction_data.get("emoji", "")
+
     return Reaction(
-        emoji=reaction_data.get("emoji", ""),
+        emoji=emoji_text,
         count=reaction_data.get("count", 0),
         authors=authors,
     )

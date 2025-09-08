@@ -5,11 +5,12 @@ from core.conversion.context import ConversionContext
 from resources.translations import tr
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.DEBUG)
 
 AGGREGATION_THRESHOLD_PERCENT = 7.5
 BASE_MAX_CHILDREN = 35
 MIN_VISIBLE_CHILDREN = 5
+ROOT_MAX_CHILDREN = 5
 
 class TreeNode:
 
@@ -30,41 +31,60 @@ def aggregate_children_for_view(
     node: TreeNode, force_full_detail: bool = False
 ) -> list[TreeNode]:
 
+    if node.date_level == "others":
+        logger.debug(f"Узел '{node.name}' является 'прочее', возвращаем его содержимое: {len(node.aggregated_children)} узлов")
+        return sorted(node.aggregated_children, key=lambda n: n.value, reverse=True)
+
+    logger.debug(f"Агрегация для узла '{node.name}' (значение: {node.value:.2f}, уровень: {getattr(node, 'date_level', 'unknown')})")
+
     if not node.children or node.value == 0:
+        logger.debug(f"Узел '{node.name}' не имеет детей или нулевое значение.")
         return node.children
 
     if force_full_detail:
+        logger.debug(f"Принудительная полная детализация для узла '{node.name}'.")
         return sorted(node.children, key=lambda n: n.value, reverse=True)
 
-    dynamic_max_children = BASE_MAX_CHILDREN
-    if node.parent and node.parent.value > 0:
-        share = node.value / node.parent.value
+    if not node.parent:
+
+        dynamic_max_children = ROOT_MAX_CHILDREN
+    else:
+
+        share = node.value / node.parent.value if node.parent.value > 0 else 0
         dynamic_max_children = int(
             MIN_VISIBLE_CHILDREN + (BASE_MAX_CHILDREN - MIN_VISIBLE_CHILDREN) * share
         )
 
-    children_copy = sorted(node.children, key=lambda n: n.value, reverse=True)
-    threshold = node.value * (AGGREGATION_THRESHOLD_PERCENT / 100.0)
+    children_sorted = sorted(node.children, key=lambda n: n.value, reverse=True)
 
-    large_nodes = []
-    small_nodes = []
-    small_nodes_value = 0
+    logger.debug(f"Параметры агрегации для '{node.name}': max_children={dynamic_max_children}, всего детей={len(children_sorted)}")
 
-    for i, child in enumerate(children_copy):
-        if child.value >= threshold and i < dynamic_max_children:
-            large_nodes.append(child)
-        else:
-            small_nodes.append(child)
-            small_nodes_value += child.value
+    if len(children_sorted) <= dynamic_max_children:
+        logger.debug(f"Количество детей ({len(children_sorted)}) не превышает лимит ({dynamic_max_children}), показываем всех.")
+        return children_sorted
 
-    if small_nodes:
+    if len(children_sorted) == dynamic_max_children + 1:
+        logger.debug(f"Количество детей ({len(children_sorted)}) лишь немного превышает лимит ({dynamic_max_children}), показываем всех, чтобы избежать '(1 прочее)'.")
+        return children_sorted
 
-        others_name = tr("{count} others").format(count=len(small_nodes))
-        others_node = TreeNode(others_name, small_nodes_value, parent=node, date_level="others")
-        others_node.aggregated_children = small_nodes
-        return large_nodes + [others_node]
+    num_to_show = dynamic_max_children - 1
+    visible_nodes = children_sorted[:num_to_show]
+    nodes_to_aggregate = children_sorted[num_to_show:]
 
-    return large_nodes
+    aggregated_value = sum(n.value for n in nodes_to_aggregate)
+
+    if aggregated_value > 0:
+        others_name = tr('{count} others').format(count=len(nodes_to_aggregate))
+        others_node = TreeNode(others_name, aggregated_value, parent=node, date_level="others")
+        others_node.aggregated_children = nodes_to_aggregate
+
+        logger.info(f"СОЗДАН УЗЕЛ 'ПРОЧЕЕ' для '{node.name}': '{others_name}' (содержит {len(nodes_to_aggregate)} узлов)")
+
+        return visible_nodes + [others_node]
+    else:
+
+        logger.warning(f"УЗЕЛ 'ПРОЧЕЕ' НЕ СОЗДАН для '{node.name}': агрегируемые узлы имеют нулевое значение.")
+        return visible_nodes
 
 class TokenAnalyzer:
     def __init__(self, date_hierarchy: dict, config: dict, unit: str):

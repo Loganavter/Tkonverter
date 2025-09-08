@@ -1,22 +1,23 @@
 import logging
-import os
 import re
-import subprocess
-import sys
 from typing import Any, Dict, Optional, Set
 
-from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
+from PyQt6.QtCore import QObject, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
 from core.analysis.tree_analyzer import TreeNode
 from core.application.analysis_service import AnalysisService
-from core.application.chat_service import ChatLoadError, ChatService
+from core.application.chat_service import ChatService
 from core.application.conversion_service import ConversionService
-from core.application.tokenizer_service import TokenizerError, TokenizerService
+from core.application.tokenizer_service import TokenizerService
 from core.conversion.domain_adapters import chat_to_dict
-from core.conversion.main_converter import generate_plain_text
 from core.dependency_injection import DIContainer
 from presenters.analysis_presenter import AnalysisPresenter
+from presenters.workers import (
+    ChatLoadWorker, ConversionWorker, AnalysisWorker,
+    TreeBuildWorker, TokenizerLoadWorker, AIInstallerWorker
+)
+from presenters.task_manager import CancellableTaskManager
 from core.domain.models import AnalysisResult, Chat
 from presenters.app_state import AppState
 from resources.translations import set_language, tr
@@ -39,490 +40,7 @@ if not preview_logger.handlers:
 
     preview_logger.addHandler(console_handler)
 
-class AIInstallerSignals(QObject):
-    """Signals for AI Installer Worker."""
-
-    progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str)
-
-class AIInstallerWorker(QRunnable):
-    """Worker for installing/removing AI components."""
-
-    def __init__(self, action: str, model_name: str | None = None):
-        super().__init__()
-        self.signals = AIInstallerSignals()
-        self.action = action
-        self.model_name = model_name
-
-    def run(self):
-        if self.action == "install_deps":
-            self._install_dependencies()
-        elif self.action == "remove_model":
-            self._remove_model_cache()
-
-    def _remove_model_cache(self):
-        """Removes model from HuggingFace cache."""
-        if not self.model_name:
-            self.signals.finished.emit(False, tr("Model name not provided."))
-            return
-
-        try:
-            from huggingface_hub import scan_cache_dir
-        except ImportError:
-            self.signals.finished.emit(False, tr("huggingface_hub is not installed."))
-            return
-
-        try:
-            self.signals.progress.emit(tr("Scanning cache for model..."))
-            hf_cache_info = scan_cache_dir()
-
-            repo_info = next(
-                (
-                    repo
-                    for repo in hf_cache_info.repos
-                    if repo.repo_id == self.model_name
-                ),
-                None,
-            )
-
-            if not repo_info:
-                self.signals.progress.emit(tr("Model not found in cache."))
-                self.signals.finished.emit(
-                    True, tr("Model cache removed successfully.")
-                )
-                return
-
-            self.signals.progress.emit(tr("Found model, preparing to delete..."))
-            revisions_to_delete = {rev.commit_hash for rev in repo_info.revisions}
-
-            delete_strategy = hf_cache_info.delete_revisions(*revisions_to_delete)
-            self.signals.progress.emit(
-                tr("Will free: {size}").format(
-                    size=delete_strategy.expected_freed_size_str
-                )
-            )
-            self.signals.progress.emit(tr("Deleting model from cache..."))
-            delete_strategy.execute()
-
-            self.signals.finished.emit(True, tr("Model cache removed successfully."))
-        except Exception as e:
-            self.signals.finished.emit(False, str(e))
-
-    def _install_dependencies(self):
-        """Installs transformers dependencies."""
-        packages = ["transformers[sentencepiece,torch]", "huggingface_hub"]
-        if sys.prefix == sys.base_prefix:
-            error_msg = tr(
-                "Refusing to install packages into the system Python. Please run this application from a virtual environment (venv)."
-            )
-            self.signals.progress.emit(f"ERROR: {error_msg}")
-            self.signals.finished.emit(False, error_msg)
-            return
-        command = [sys.executable, "-m", "pip", "install", "--upgrade", *packages]
-        try:
-            self.signals.progress.emit(
-                tr("Executing: {command}").format(command=" ".join(command))
-            )
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-
-            for line in iter(process.stdout.readline, ""):
-                self.signals.progress.emit(line.strip())
-
-            process.wait()
-
-            if process.returncode == 0:
-                self.signals.finished.emit(True, tr("Operation successful."))
-            else:
-                self.signals.finished.emit(
-                    False,
-                    tr("Operation failed with code: {code}").format(
-                        code=process.returncode
-                    ),
-                )
-        except Exception as e:
-            self.signals.finished.emit(False, str(e))
-
 logger = logging.getLogger(__name__)
-
-class WorkerSignals(QObject):
-    """Signals for worker threads."""
-
-    progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str, object)
-
-class ChatLoadWorker(QRunnable):
-    """Worker for loading chat in a separate thread."""
-
-    def __init__(self, chat_service: ChatService, file_path: str):
-        super().__init__()
-        self.chat_service = chat_service
-        self.file_path = file_path
-        self.signals = WorkerSignals()
-
-    def run(self):
-        try:
-            chat = self.chat_service.load_chat_from_file(self.file_path)
-            self.signals.finished.emit(True, tr("File loaded successfully"), chat)
-        except ChatLoadError as e:
-            self.signals.finished.emit(False, str(e), None)
-        except Exception as e:
-            logger.error(f"Unexpected error loading chat: {e}")
-            self.signals.finished.emit(
-                False, tr("Unexpected error: {error}").format(error=str(e)), None
-            )
-
-class ConversionWorker(QRunnable):
-    """Worker for converting chat to text in a separate thread."""
-
-    def __init__(
-        self,
-        conversion_service: ConversionService,
-        chat: Chat,
-        config: Dict[str, Any],
-        save_path: str,
-        disabled_nodes: Optional[Set[TreeNode]] = None,
-    ):
-        super().__init__()
-        self.conversion_service = conversion_service
-        self.chat = chat
-        self.config = config
-        self.save_path = save_path
-        self.disabled_nodes = disabled_nodes or set()
-        self.signals = WorkerSignals()
-
-    def run(self):
-        try:
-            self.signals.progress.emit(tr("Converting chat..."))
-            text = self.conversion_service.convert_to_text(
-                self.chat,
-                self.config,
-                html_mode=False,
-                disabled_nodes=self.disabled_nodes,
-            )
-
-            with open(self.save_path, "w", encoding="utf-8") as f:
-                f.write(text)
-
-            self.signals.finished.emit(True, self.save_path, None)
-        except Exception as e:
-            logger.error(f"Conversion error: {e}")
-            self.signals.finished.emit(False, str(e), None)
-
-class AnalysisWorker(QRunnable):
-    """Worker for analyzing chat in a separate thread."""
-
-    def __init__(
-        self,
-        analysis_service: AnalysisService,
-        chat: Chat,
-        config: Dict[str, Any],
-        tokenizer: Optional[Any] = None,
-    ):
-        super().__init__()
-        self.analysis_service = analysis_service
-        self.chat = chat
-        self.config = config
-        self.tokenizer = tokenizer
-        self.signals = WorkerSignals()
-
-    def run(self):
-        try:
-            self.signals.progress.emit(tr("Analyzing chat..."))
-
-            if self.tokenizer:
-                result = self.analysis_service.calculate_token_stats(
-                    self.chat, self.config, self.tokenizer
-                )
-            else:
-                result = self.analysis_service.calculate_character_stats(
-                    self.chat, self.config
-                )
-
-            self.signals.finished.emit(True, tr("Analysis completed"), result)
-        except Exception as e:
-            logger.error(f"Analysis error: {e}")
-            self.signals.finished.emit(False, str(e), None)
-
-class TreeBuildWorker(QRunnable):
-    """Worker for building analysis tree in a separate thread."""
-
-    def __init__(
-        self,
-        analysis_service: AnalysisService,
-        analysis_result: AnalysisResult,
-        config: Dict[str, Any],
-    ):
-        super().__init__()
-        self.analysis_service = analysis_service
-        self.analysis_result = analysis_result
-        self.config = config
-        self.signals = WorkerSignals()
-
-    def run(self):
-        try:
-            self.signals.progress.emit(tr("Building analysis tree..."))
-            tree = self.analysis_service.build_analysis_tree(
-                self.analysis_result, self.config
-            )
-            self.signals.finished.emit(True, tr("Tree built successfully"), tree)
-        except Exception as e:
-            logger.error(f"Tree building error: {e}")
-            self.signals.finished.emit(False, str(e), None)
-
-class TokenizerLoadWorker(QRunnable):
-    """Worker for loading tokenizer in a separate thread."""
-
-    def __init__(self, tokenizer_service: TokenizerService, model_name: str):
-        super().__init__()
-        self.tokenizer_service = tokenizer_service
-        self.model_name = model_name
-        self.signals = WorkerSignals()
-
-    def run(self):
-        try:
-            progress_callback = lambda msg: self.signals.progress.emit(msg)
-            tokenizer = self.tokenizer_service.load_tokenizer(
-                self.model_name, local_only=False, progress_callback=progress_callback
-            )
-            self.signals.finished.emit(
-                True, tr("Tokenizer loaded successfully"), tokenizer
-            )
-        except TokenizerError as e:
-            self.signals.finished.emit(False, str(e), None)
-        except Exception as e:
-            logger.error(f"Unexpected tokenizer error: {e}")
-            self.signals.finished.emit(False, str(e), None)
-
-def _generate_hardcoded_preview_data(config: dict) -> dict:
-    profile = config.get("profile", "group")
-
-    my_name = config.get("my_name", tr("Me"))
-    partner_name = config.get("partner_name", tr("Sister"))
-
-    if profile == "group":
-        preview_data = {
-            "name": tr("Preview: Example Group"),
-            "messages": [
-                {
-                    "id": 1,
-                    "type": "service",
-                    "action": "create_group",
-                    "actor": tr("Preview: Alaisa"),
-                    "title": tr("Preview: Example Group"),
-                    "members": [
-                        tr("Preview: Alaisa"),
-                        tr("Preview: Alice"),
-                        tr("Preview: Bob"),
-                    ],
-                    "date": "2025-04-02T23:57:00",
-                },
-                {
-                    "id": 2,
-                    "type": "message",
-                    "from": tr("Preview: Bob"),
-                    "from_id": "user_bob",
-                    "date": "2025-04-02T23:58:00",
-                    "text": tr("Preview: Hello everyone!"),
-                    "reactions": [
-                        {
-                            "emoji": "👍",
-                            "count": 1,
-                            "recent": [
-                                {"from": tr("Preview: Alice"), "from_id": "user_alice"}
-                            ],
-                        }
-                    ],
-                },
-                {
-                    "id": 3,
-                    "type": "message",
-                    "from": tr("Preview: Alice"),
-                    "from_id": "user_alice",
-                    "date": "2025-04-02T23:59:00",
-                    "edited": "2025-04-02T23:59:30",
-                    "text": [{"type": "italic", "text": tr("Preview: One moment")}],
-                },
-                {
-                    "id": 4,
-                    "type": "service",
-                    "action": "invite_members",
-                    "actor": tr("Preview: Alice"),
-                    "members": [tr("Preview: Alexander")],
-                    "date": "2025-04-02T23:59:50",
-                },
-                {
-                    "id": 5,
-                    "type": "message",
-                    "from": tr("Preview: Alexander"),
-                    "from_id": "user_alex",
-                    "date": "2025-04-03T00:01:00",
-                    "reply_to_message_id": 3,
-                    "text": tr("Preview: Thanks"),
-                    "media_type": "sticker",
-                    "sticker_emoji": "❤",
-                    "reactions": [
-                        {
-                            "emoji": "💯",
-                            "count": 1,
-                            "recent": [
-                                {"from": tr("Preview: Bob"), "from_id": "user_bob"}
-                            ],
-                        },
-                        {
-                            "emoji": "🔥",
-                            "count": 2,
-                            "recent": [
-                                {"from": tr("Preview: Alice"), "from_id": "user_alice"},
-                                {"from": tr("Preview: Bob"), "from_id": "user_bob"},
-                            ],
-                        },
-                    ],
-                },
-            ],
-        }
-
-    elif profile == "personal":
-
-        real_my_name = tr("Preview: Misha")
-        real_partner_name = tr("Preview: Alice")
-
-        my_alias = config.get("my_name", tr("Me"))
-        partner_alias = config.get("partner_name", tr("Sister"))
-
-        preview_data = {
-            "name": "Alice",
-            "messages": [
-                {
-                    "id": 1,
-                    "type": "service",
-                    "action": "set_messages_ttl",
-                    "actor": partner_alias,
-                    "period_seconds": 0,
-                    "date": "2024-12-31T23:57:00",
-                },
-                {
-                    "id": 2,
-                    "type": "message",
-
-                    "from": real_my_name,
-                    "from_id": "user_misha",
-                    "date": "2024-12-31T23:58:00",
-                    "text": tr("Preview: Almost midnight..."),
-                    "reactions": [
-                        {
-                            "emoji": "❤️",
-                            "count": 1,
-                            "recent": [
-
-                                {"from": partner_alias, "from_id": "user_alice"}
-                            ],
-                        }
-                    ],
-                },
-                {
-                    "id": 3,
-                    "type": "message",
-                    "from": real_partner_name,
-                    "from_id": "user_alice",
-                    "date": "2025-01-01T00:01:00",
-                    "text": tr("Preview: Happy New Year!"),
-                    "reactions": [
-                        {
-                            "emoji": "🔥",
-                            "count": 1,
-                            "recent": [{"from": my_alias, "from_id": "user_misha"}],
-                        }
-                    ],
-                },
-            ],
-        }
-
-    elif profile == "posts":
-        editor_name = tr("Preview: Main Editor")
-        preview_data = {
-            "name": editor_name,
-            "messages": [
-                {
-                    "id": 10,
-                    "type": "message",
-                    "from": editor_name,
-                    "date": "2025-08-13T13:00:00",
-                    "text": [
-                        {"type": "bold", "text": tr("Preview: New Telegram Update")},
-                        "\n\n",
-                        tr("Preview: Update description"),
-                        "\n\n",
-                        {
-                            "type": "text_link",
-                            "text": editor_name,
-                            "href": "http://t.me/me",
-                        },
-                    ],
-                },
-                {
-                    "id": 11,
-                    "type": "message",
-                    "from": "Red One",
-                    "from_id": "user_red",
-                    "date": "2025-08-13T13:02:00",
-                    "reply_to_message_id": 10,
-                    "text": tr("Preview: Why do we need this?"),
-                },
-                {
-                    "id": 12,
-                    "type": "message",
-                    "from": "Ficction",
-                    "from_id": "user_ficc",
-                    "date": "2025-08-13T13:04:00",
-                    "reply_to_message_id": 11,
-                    "text": tr("Preview: If you don't need it..."),
-                },
-            ],
-        }
-
-    elif profile == "channel":
-        preview_data = {
-            "name": tr("Preview: Example Channel"),
-            "messages": [
-                {
-                    "id": 1,
-                    "type": "message",
-                    "from": tr("Preview: Bob"),
-                    "from_id": "user_bob",
-                    "date": "2025-04-02T23:58:00",
-                    "text": tr("Preview: Hello everyone!"),
-                },
-                {
-                    "id": 2,
-                    "type": "message",
-                    "from": tr("Preview: Bob"),
-                    "from_id": "user_bob",
-                    "date": "2025-04-02T23:58:30",
-                    "text": tr("Preview: This is a second message from me."),
-                },
-                {
-                    "id": 3,
-                    "type": "message",
-                    "from": tr("Preview: Alice"),
-                    "from_id": "user_alice",
-                    "date": "2025-04-02T23:59:00",
-                    "edited": "2020-04-02T23:59:30",
-                    "text": [{"type": "italic", "text": tr("Preview: One moment")}],
-                },
-            ],
-        }
-
-    else:
-        preview_data = {}
-
-    return preview_data
 
 class ModernTkonverterPresenter(QObject):
     """Main presenter implementing Clean Architecture with service layer."""
@@ -584,6 +102,8 @@ class ModernTkonverterPresenter(QObject):
         self._threadpool = QThreadPool()
         self._current_workers = []
 
+        self.analysis_task_manager = CancellableTaskManager(AnalysisWorker)
+
         self._connect_signals()
 
         self._try_load_default_tokenizer()
@@ -607,6 +127,9 @@ class ModernTkonverterPresenter(QObject):
         self._view.help_button_clicked.connect(self.on_help_clicked)
 
         self._theme_manager.theme_changed.connect(self._on_app_theme_changed)
+
+        self.analysis_task_manager.finished.connect(self._on_analysis_finished)
+        self.analysis_task_manager.progress.connect(self._view.show_status)
 
     def _try_load_default_tokenizer(self):
         """Attempts to load the default tokenizer ONLY from local cache."""
@@ -654,25 +177,10 @@ class ModernTkonverterPresenter(QObject):
     def _generate_preview(self):
         """Starts a preview generation using hardcoded data."""
         try:
+            from presenters.preview_service import PreviewService
+            preview_service = PreviewService()
             config = self._app_state.ui_config
-
-            preview_data = _generate_hardcoded_preview_data(config)
-
-            raw_text = generate_plain_text(preview_data, config, html_mode=True)
-
-            profile = config.get("profile", "group")
-
-            if profile == "group":
-                title = tr("Preview: Group example")
-            elif profile == "personal":
-                title = tr("Preview: Personal example")
-            elif profile == "posts":
-                title = tr("Preview: Posts example")
-            elif profile == "channel":
-                title = tr("Preview: Channel example")
-            else:
-                title = tr("Preview")
-
+            raw_text, title = preview_service.generate_preview_text(config)
             self.preview_updated.emit(raw_text, title)
 
         except Exception as e:
@@ -692,16 +200,10 @@ class ModernTkonverterPresenter(QObject):
         Presenter generates raw_text, View formats it to HTML.
         """
         try:
+            from presenters.preview_service import PreviewService
+            preview_service = PreviewService()
             config = self._app_state.ui_config.copy()
-            config["profile"] = "posts"
-
-            preview_data = _generate_hardcoded_preview_data(config)
-
-            raw_text = generate_plain_text(preview_data, config, html_mode=True)
-
-            result_html = raw_text.replace("\n", "<br>")
-
-            return result_html
+            return preview_service.get_longest_preview_html(config)
 
         except Exception as e:
             preview_logger.error(f"=== LONGEST PREVIEW GENERATION ERROR ===")
@@ -758,6 +260,9 @@ class ModernTkonverterPresenter(QObject):
             chat_name = self._app_state.get_chat_name()
 
             self.chat_loaded.emit(True, "", chat_name)
+
+            if self._app_state.get_config_value("auto_recalc", False):
+                self.on_recalculate_clicked()
 
         else:
             self.chat_loaded.emit(False, message, "")
@@ -891,38 +396,34 @@ class ModernTkonverterPresenter(QObject):
             self._view.show_status(message_key="Please load a JSON file first.", is_error=True)
             return
 
-        if self._app_state.is_processing:
-            return
-
         self.set_processing_state_in_view(True, message_key="Calculating...")
 
-        worker = AnalysisWorker(
-            self._analysis_service,
-            self._app_state.loaded_chat,
-            self._app_state.ui_config.copy(),
-            self._app_state.tokenizer,
+        self.analysis_task_manager.submit(
+            analysis_service=self._analysis_service,
+            chat=self._app_state.loaded_chat,
+            config=self._app_state.ui_config.copy(),
+            tokenizer=self._app_state.tokenizer,
         )
-        worker.signals.finished.connect(self._on_analysis_finished)
-
-        self._current_workers.append(worker)
-        self._threadpool.start(worker)
 
     def _on_analysis_finished(
         self, success: bool, message: str, result: Optional[AnalysisResult]
     ):
         """Handles analysis completion."""
-        self.set_processing_state_in_view(False)
+
+        if self.analysis_task_manager._pending_args is None:
+            self.set_processing_state_in_view(False)
 
         if success and result:
             self._app_state.set_analysis_result(result)
             self.analysis_count_updated.emit(result.total_count, result.unit)
         else:
 
-            self._view.show_status(
-                message_key="Analysis failed or no data found.",
-                is_error=True
-            )
-            self.analysis_count_updated.emit(-1, "chars")
+            if message != "Cancelled":
+                self._view.show_status(
+                    message_key="Analysis failed or no data found.",
+                    is_error=True
+                )
+                self.analysis_count_updated.emit(-1, "chars")
 
     def on_diagram_clicked(self):
         """Handles diagram button click."""

@@ -82,6 +82,9 @@ class SunburstSegment:
     is_selected: bool = False
     is_disabled: bool = False
 
+    artist: Optional[Any] = None
+    text_artist: Optional[Any] = None
+
 @dataclass
 class ChartInteractionInfo:
     """Information about chart interaction."""
