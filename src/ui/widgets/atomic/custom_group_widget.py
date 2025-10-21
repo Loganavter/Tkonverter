@@ -9,7 +9,7 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QFontMetrics, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
-from ui.theme import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class CustomGroupWidget(QWidget):
     """Custom group widget with custom border drawing."""

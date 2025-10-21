@@ -1,6 +1,6 @@
-from core.conversion.context import ConversionContext
-from core.conversion.utils import process_text_to_plain
-from resources.translations import tr
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.utils import process_text_to_plain
+from src.resources.translations import tr
 
 def format_todo_list(todo_data: dict, context: ConversionContext) -> str:
     """Formats a to-do list."""

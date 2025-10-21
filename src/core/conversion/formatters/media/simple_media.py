@@ -1,9 +1,6 @@
-import logging
-from core.conversion.context import ConversionContext
-from core.conversion.utils import format_duration
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.utils import format_duration
+from src.resources.translations import tr
 
 BAD_FILENAME = "(File not included. Change data exporting settings to download.)"
 

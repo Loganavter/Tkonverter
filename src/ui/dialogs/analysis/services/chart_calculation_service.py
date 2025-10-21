@@ -59,6 +59,7 @@ class ChartCalculationService:
         Returns:
             List of segments for rendering
         """
+
         if not root_node or not root_node.children:
             return []
 
@@ -135,6 +136,7 @@ class ChartCalculationService:
         max_radius: float,
     ):
         """Recursively calculates segments for level."""
+
         if level >= self.MAX_DEPTH:
             return
 
@@ -151,6 +153,7 @@ class ChartCalculationService:
 
         current_angle = start_angle
         angle_range = end_angle - start_angle
+        segments_created = 0
 
         for node in nodes:
             if node in disabled_nodes:
@@ -172,6 +175,7 @@ class ChartCalculationService:
                 level=level,
             )
             segments.append(segment)
+            segments_created += 1
 
             children_to_process = []
             if node.children:
@@ -208,7 +212,8 @@ class ChartCalculationService:
         name_hash = hash(node.name) % 360
         hue = name_hash / 360.0
 
-        return self._hsv_to_hex(hue, saturation, brightness)
+        color = self._hsv_to_hex(hue, saturation, brightness)
+        return color
 
     def _hsv_to_hex(self, h: float, s: float, v: float) -> str:
         """Converts HSV to HEX."""

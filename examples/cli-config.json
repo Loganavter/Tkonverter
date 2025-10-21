@@ -1,0 +1,14 @@
+{
+  "profile": "group",
+  "show_time": true,
+  "show_reactions": true,
+  "show_reaction_authors": false,
+  "my_name": "Me",
+  "partner_name": "Partner",
+  "show_optimization": false,
+  "streak_break_time": "20:00",
+  "show_markdown": true,
+  "show_links": true,
+  "show_tech_info": true,
+  "show_service_notifications": true
+}

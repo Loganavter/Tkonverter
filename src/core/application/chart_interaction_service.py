@@ -7,14 +7,11 @@ Service for handling chart interactions.
 - Filter change coordination
 """
 
-import logging
 from typing import Callable, Optional, Set
 
-from core.analysis.tree_analyzer import TreeNode
-from core.application.chart_service import ChartService
-from core.view_models import ChartInteractionInfo, ChartViewModel, SunburstSegment
-
-logger = logging.getLogger(__name__)
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.application.chart_service import ChartService
+from src.core.view_models import ChartInteractionInfo, ChartViewModel, SunburstSegment
 
 class ChartInteractionService:
     """Service for handling chart interactions."""
@@ -61,7 +58,7 @@ class ChartInteractionService:
             try:
                 callback(segment)
             except Exception as e:
-                logger.error(f"Error in hover callback: {e}")
+                pass
 
         if segment:
             return self._chart_service.get_segment_tooltip(
@@ -116,7 +113,6 @@ class ChartInteractionService:
             try:
                 callback(segment)
             except Exception as e:
-                logger.error(f"Error in click callback: {e}")
 
         return True
 
@@ -129,7 +125,6 @@ class ChartInteractionService:
             try:
                 callback(None)
             except Exception as e:
-                logger.error(f"Error in hover callback on exit: {e}")
 
     def get_cursor_type(self, x: float, y: float) -> str:
         """

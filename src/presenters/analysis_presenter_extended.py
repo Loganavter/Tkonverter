@@ -1,19 +1,18 @@
-import logging
 from typing import Optional, Set, Dict, Any
 
 from PyQt6.QtCore import QObject, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
-from core.analysis.tree_analyzer import TreeNode
-from core.application.analysis_service import AnalysisService
-from core.application.chat_service import ChatService
-from core.conversion.domain_adapters import chat_to_dict
-from core.domain.models import AnalysisResult, Chat
-from presenters.app_state import AppState
-from presenters.workers import AnalysisWorker, TreeBuildWorker
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.analysis.tree_identity import TreeNodeIdentity
+from src.core.application.analysis_service import AnalysisService
+from src.core.application.chat_service import ChatService
+from src.core.conversion.domain_adapters import chat_to_dict
+from src.core.domain.models import AnalysisResult, Chat
+from src.presenters.app_state import AppState
+from src.presenters.workers import AnalysisWorker, TreeBuildWorker
+from src.resources.translations import tr
+from src.ui.dialogs.analysis.analysis_dialog import AnalysisDialog
 
 class AnalysisPresenterExtended(QObject):
     """Extended presenter for managing analysis functionality and dialogs."""
@@ -61,6 +60,7 @@ class AnalysisPresenterExtended(QObject):
             self._app_state.loaded_chat,
             self._app_state.ui_config.copy(),
             self._app_state.tokenizer,
+            disabled_dates=set(),
         )
         worker.signals.finished.connect(self._on_analysis_finished)
 
@@ -73,7 +73,15 @@ class AnalysisPresenterExtended(QObject):
 
         if success and result:
             self._app_state.set_analysis_result(result)
+
+            tree = self._analysis_service.build_analysis_tree(result, self._app_state.ui_config)
+            self._app_state.set_analysis_tree(tree)
+
+            self._app_state.clear_disabled_nodes()
+
             self.analysis_count_updated.emit(result.total_count, result.unit)
+            self.analysis_completed.emit(tree)
+            self.disabled_nodes_changed.emit(set())
         else:
             self._view.show_status(
                 message_key="Analysis failed or no data found.",
@@ -125,12 +133,13 @@ class AnalysisPresenterExtended(QObject):
 
     def _show_analysis_dialog(self):
         """Shows analysis dialog with bidirectional communication."""
-        from ui.dialogs.analysis.analysis_dialog import AnalysisDialog
+        print(f"ANALYSIS DEBUG: _show_analysis_dialog called, analysis_tree={self._app_state.analysis_tree}")
 
         if self._analysis_dialog is not None:
             try:
+                self.analysis_completed.disconnect(self._analysis_dialog.update_chart_data)
                 self._analysis_dialog.accepted.disconnect(self._handle_analysis_accepted)
-                self.disabled_nodes_changed.disconnect(self._analysis_dialog.presenter.view.on_external_update)
+                self.disabled_nodes_changed.disconnect(self._analysis_dialog.on_external_update)
             except (TypeError, RuntimeError):
                 pass
             try:
@@ -140,41 +149,58 @@ class AnalysisPresenterExtended(QObject):
             self._analysis_dialog = None
 
         try:
-            from presenters.analysis_presenter import AnalysisPresenter
-            analysis_presenter = AnalysisPresenter()
-            self._analysis_dialog = analysis_presenter.get_view(parent=self._view)
+            print("ANALYSIS DEBUG: Creating AnalysisDialog")
+            self._analysis_dialog = AnalysisDialog(
+                presenter=self,
+                theme_manager=self._theme_manager,
+                parent=self._view,
+            )
+            print("ANALYSIS DEBUG: AnalysisDialog created successfully")
 
             self._analysis_dialog.accepted.connect(self._handle_analysis_accepted)
-            self.disabled_nodes_changed.connect(analysis_presenter.view.on_external_update)
+            self._analysis_dialog.filter_changed.connect(self.update_disabled_nodes)
+            self.disabled_nodes_changed.connect(self._analysis_dialog.on_external_update)
+            self.analysis_completed.connect(self._analysis_dialog.update_chart_data)
 
             def disconnect_analysis_signals(result_code=None):
                 try:
                     if self._analysis_dialog:
                         self.disabled_nodes_changed.disconnect(self._analysis_dialog.on_external_update)
                         self._analysis_dialog.accepted.disconnect(self._handle_analysis_accepted)
+                        self._analysis_dialog.filter_changed.disconnect(self.update_disabled_nodes)
+                        self.analysis_completed.disconnect(self._analysis_dialog.update_chart_data)
                 except (TypeError, RuntimeError):
                     pass
 
             self._analysis_dialog.finished.connect(disconnect_analysis_signals)
 
             if self._app_state.analysis_tree:
-                analysis_presenter.load_analysis_data(
+                print(f"ANALYSIS DEBUG: Loading data with tree={self._app_state.analysis_tree}")
+                disabled_nodes = self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree)
+                print(f"ANALYSIS DEBUG: disabled_nodes count = {len(disabled_nodes)}")
+                print(f"ANALYSIS DEBUG: unit = {self._app_state.last_analysis_unit}")
+
+                self._analysis_dialog.load_data_and_show(
                     root_node=self._app_state.analysis_tree,
-                    initial_disabled_nodes=self._app_state.disabled_time_nodes,
+                    initial_disabled_nodes=disabled_nodes,
                     unit=self._app_state.last_analysis_unit
                 )
+            print("ANALYSIS DEBUG: About to show dialog")
             self._analysis_dialog.show()
+            print("ANALYSIS DEBUG: Dialog show() called")
 
         except Exception as e:
-            logger.error(f"Error opening analysis dialog: {e}")
+            print(f"ANALYSIS ERROR: Exception in _show_analysis_dialog: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _handle_analysis_accepted(self):
         """Handles analysis dialog confirmation."""
         if self._analysis_dialog:
-            final_disabled_nodes = self._analysis_dialog.disabled_nodes
+            final_disabled_nodes = self._analysis_dialog._get_nodes_from_ids(self._analysis_dialog.disabled_node_ids)
             self.update_disabled_nodes(final_disabled_nodes)
         else:
-            logger.warning("[AnalysisPresenter] _handle_analysis_accepted called, but _analysis_dialog is None")
+            pass
 
     def on_calendar_clicked(self):
         """Handles calendar button click."""
@@ -223,7 +249,7 @@ class AnalysisPresenterExtended(QObject):
 
     def _show_calendar_dialog(self):
         """Shows calendar dialog with bidirectional communication."""
-        from ui.dialogs.calendar import CalendarDialog
+        from src.ui.dialogs.calendar import CalendarDialog
 
         if self._calendar_dialog is not None:
             try:
@@ -242,12 +268,11 @@ class AnalysisPresenterExtended(QObject):
             messages_dict = chat_as_dict.get("messages", [])
 
             self._calendar_dialog = CalendarDialog(
-                presenter=self,
                 messages=messages_dict,
                 config=self._app_state.ui_config.copy(),
                 theme_manager=self._theme_manager,
                 root_node=self._app_state.analysis_tree,
-                initial_disabled_nodes=self._app_state.disabled_time_nodes,
+                initial_disabled_nodes=self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree),
                 token_hierarchy=(
                     self._app_state.analysis_result.date_hierarchy
                     if self._app_state.analysis_result
@@ -272,15 +297,16 @@ class AnalysisPresenterExtended(QObject):
 
             self._calendar_dialog.show()
         except Exception as e:
-            logger.exception(f"Error opening calendar dialog: {e}")
             self._view.show_status(message_key="Error opening calendar dialog", is_error=True)
 
     def update_disabled_nodes(self, new_disabled_set: Set[TreeNode]):
         """Updates disabled nodes."""
-        old_disabled_set = self._app_state.disabled_time_nodes.copy()
+        old_disabled_set = self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set()
+
         if old_disabled_set != new_disabled_set:
             self._app_state.set_disabled_nodes(new_disabled_set)
             self.disabled_nodes_changed.emit(new_disabled_set)
+            self._refresh_all_ui()
 
     def set_processing_state_in_view(self, is_processing: bool, message: str = "", message_key: str = None, format_args: dict = None):
         """Proxy method for calling set_processing_state in view."""
@@ -293,47 +319,136 @@ class AnalysisPresenterExtended(QObject):
         if hasattr(self._view, 'set_processing_state'):
             self._view.set_processing_state(is_processing, None, message_key, format_args)
         else:
-            logger.warning("View does not have set_processing_state method")
+            pass
 
-    def get_analysis_stats(self) -> Optional[Dict[str, int]]:
-        """Returns analysis statistics considering filtering."""
-        if not self._app_state.analysis_result:
-            return None
+    def on_config_value_changed_for_update(self, key: str, value: Any):
+        """СИНХРОННОЕ обновление анализа при изменении настроек с гарантией сохранности disabled_dates"""
+        if not self._app_state.has_analysis_data():
+            return
 
-        total_count = self._app_state.analysis_result.total_count
+        analysis_affecting_keys = [
+            "profile", "show_service_notifications", "show_markdown",
+            "show_links", "show_time", "show_reactions",
+            "show_reaction_authors", "show_tech_info",
+            "show_optimization", "streak_break_time",
+            "my_name", "partner_name"
+        ]
 
-        if self._app_state.analysis_tree and self._app_state.disabled_time_nodes:
-            filtered_count = self._calculate_filtered_count()
-        else:
-            filtered_count = total_count
+        if key not in analysis_affecting_keys:
+            return
 
-        return {
-            "total_count": total_count,
-            "filtered_count": filtered_count,
-            "disabled_count": total_count - filtered_count,
-        }
+        try:
 
-    def _calculate_filtered_count(self) -> int:
-        """Calculates the number of tokens/characters after filtering."""
-        if not self._app_state.analysis_tree:
-            return 0
+            if self._app_state.tokenizer:
+                result = self._analysis_service.calculate_token_stats(
+                    self._app_state.loaded_chat,
+                    self._app_state.ui_config,
+                    self._app_state.tokenizer,
+                    disabled_dates=set()
+                )
+            else:
+                result = self._analysis_service.calculate_character_stats(
+                    self._app_state.loaded_chat,
+                    self._app_state.ui_config,
+                    disabled_dates=set()
+                )
 
-        return self._calculate_tree_value_excluding_disabled(
-            self._app_state.analysis_tree
-        )
+            if self._app_state.analysis_tree:
+                extended_result = self._extend_analysis_result_with_existing_tree(result, self._app_state.analysis_tree)
+                tree = self._analysis_service.update_tree_values(
+                    self._app_state.analysis_tree,
+                    extended_result
+                )
+            else:
 
-    def _calculate_tree_value_excluding_disabled(self, node) -> int:
-        """Recursively calculates the value of the tree, excluding disabled nodes."""
-        if not isinstance(node, TreeNode):
-            return 0
+                tree = self._analysis_service.build_analysis_tree(result, self._app_state.ui_config)
 
-        if node in self._app_state.disabled_time_nodes:
-            return 0
+            self._app_state.set_analysis_result(result)
+            self._app_state.set_analysis_tree(tree)
 
-        if node.children:
-            total = 0
+            self._refresh_all_ui_sync()
+
+        except Exception as e:
+            self._view.show_status(message_key="Error recalculating analysis", is_error=True)
+
+    def _extend_analysis_result_with_existing_tree(self, new_result: AnalysisResult, existing_tree: TreeNode) -> AnalysisResult:
+        """
+        Расширяет новый результат анализа, чтобы включить все даты из существующего дерева.
+        Это гарантирует, что все узлы дней останутся в дереве, даже если их значения стали 0.
+        """
+        from collections import defaultdict
+
+        extended_hierarchy = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+
+        for year, months in new_result.date_hierarchy.items():
+            for month, days in months.items():
+                for day, value in days.items():
+                    extended_hierarchy[year][month][day] = value
+
+        def collect_existing_dates(node: TreeNode):
+            if node.date_level == "day" and node.parent and node.parent.parent:
+                year = node.parent.parent.name
+                month = node.parent.name
+                day = node.name
+
+                if year not in extended_hierarchy or \
+                   month not in extended_hierarchy.get(year, {}) or \
+                   day not in extended_hierarchy.get(year, {}).get(month, {}):
+                    extended_hierarchy[year][month][day] = 0.0
+
             for child in node.children:
-                total += self._calculate_tree_value_excluding_disabled(child)
-            return total
-        else:
-            return node.value
+                collect_existing_dates(child)
+            if hasattr(node, 'aggregated_children') and node.aggregated_children:
+                for agg_child in node.aggregated_children:
+                    collect_existing_dates(agg_child)
+
+        collect_existing_dates(existing_tree)
+
+        extended_result = AnalysisResult(
+            total_count=new_result.total_count,
+            unit=new_result.unit,
+            date_hierarchy=dict(extended_hierarchy),
+            total_characters=new_result.total_characters,
+            average_message_length=new_result.average_message_length,
+            most_active_user=new_result.most_active_user,
+        )
+        return extended_result
+
+    def _refresh_all_ui(self):
+        """Принудительно обновляет все элементы UI"""
+        if not self._app_state.has_analysis_data():
+            self.analysis_count_updated.emit(-1, "chars")
+            return
+
+        result = self._app_state.analysis_result
+        tree = self._app_state.analysis_tree
+
+        self.analysis_completed.emit(tree)
+
+        filtered_count = self._app_state.get_filtered_count()
+        self.analysis_count_updated.emit(filtered_count, result.unit)
+
+    def _refresh_all_ui_sync(self):
+        """Синхронное обновление UI"""
+        if not self._app_state.has_analysis_data():
+            self.analysis_count_updated.emit(-1, "chars")
+            return
+
+        result = self._app_state.analysis_result
+        tree = self._app_state.analysis_tree
+
+        self.analysis_completed.emit(tree)
+
+        filtered_count = self._app_state.get_filtered_count()
+        self.analysis_count_updated.emit(filtered_count, result.unit)
+
+    def on_disabled_dates_changed(self):
+        """Вызывается при изменении disabled_dates из диаграммы."""
+        if not self._app_state.has_analysis_data():
+            return
+
+        try:
+
+            self.on_config_value_changed_for_update("disabled_nodes", None)
+        except Exception as e:
+            self._view.show_status(message_key="Error recalculating after date change", is_error=True)

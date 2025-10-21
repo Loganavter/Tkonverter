@@ -1,5 +1,5 @@
-from core.conversion.context import ConversionContext
-from resources.translations import tr
+from src.core.conversion.context import ConversionContext
+from src.resources.translations import tr
 
 def format_paid_media(msg: dict, context: ConversionContext) -> str:
     """Formats paid media message."""

@@ -4,16 +4,13 @@ from PyQt6.QtWidgets import (
     QComboBox, QDialog, QHBoxLayout, QLabel, QVBoxLayout, QButtonGroup, QLineEdit, QWidget
 )
 
-import logging
-
-from resources.translations import tr
-from ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from ui.widgets.atomic.fluent_radio import FluentRadioButton
-from ui.widgets.atomic.fluent_spinbox import FluentSpinBox
-from ui.widgets.atomic.fluent_checkbox import FluentCheckBox
-from ui.widgets.atomic.custom_group_widget import CustomGroupBuilder
-
-settings_logger = logging.getLogger("SettingsDialog")
+from src.resources.translations import tr
+from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
+from src.shared_toolkit.ui.widgets.atomic import FluentRadioButton
+from src.shared_toolkit.ui.widgets.atomic import FluentSpinBox
+from src.shared_toolkit.ui.widgets.atomic import FluentCheckBox
+from src.shared_toolkit.ui.widgets.atomic import FluentComboBox
+from src.shared_toolkit.ui.widgets.atomic import CustomGroupBuilder
 
 class SettingsDialog(QDialog):
 
@@ -37,7 +34,7 @@ class SettingsDialog(QDialog):
 
         lang_layout = QHBoxLayout()
         self.lang_label = QLabel()
-        self.combo_lang = QComboBox()
+        self.combo_lang = FluentComboBox()
 
         self.combo_lang.addItem("", "ru")
         self.combo_lang.addItem("", "en")
@@ -50,7 +47,7 @@ class SettingsDialog(QDialog):
 
         theme_layout = QHBoxLayout()
         self.theme_label = QLabel()
-        self.combo_theme = QComboBox()
+        self.combo_theme = FluentComboBox()
 
         self.combo_theme.addItem("", "auto")
         self.combo_theme.addItem("", "light")
@@ -79,7 +76,7 @@ class SettingsDialog(QDialog):
         font_layout.addWidget(self.radio_font_system_default)
         font_layout.addWidget(self.radio_font_system_custom)
 
-        self.combo_font_family = QComboBox()
+        self.combo_font_family = FluentComboBox()
         families = QFontDatabase.families()
 
         self.combo_font_family.addItem("", "")

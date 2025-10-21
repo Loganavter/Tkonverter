@@ -1,13 +1,13 @@
-from core.conversion.context import ConversionContext
-from core.conversion.formatters.media_formatter import format_media
-from core.conversion.utils import (
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.formatters.media_formatter import format_media
+from src.core.conversion.utils import (
     format_duration,
     format_member_list,
     pluralize_ru,
     process_text_to_plain,
     truncate_name,
 )
-from resources.translations import tr
+from src.resources.translations import tr
 
 def format_pin_message(msg: dict, context: ConversionContext) -> str:
     actor = truncate_name(msg.get("actor", tr("System")), context=context)

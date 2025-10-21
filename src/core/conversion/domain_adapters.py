@@ -7,7 +7,7 @@ and existing formatters that expect dictionaries.
 
 from typing import Any, Dict
 from dataclasses import asdict
-from core.domain.models import Chat, MediaInfo, Message, Reaction, ServiceMessage, User
+from src.core.domain.models import Chat, MediaInfo, Message, Reaction, ServiceMessage, User
 
 def user_to_dict(user: User) -> Dict[str, str]:
     """Converts User to dictionary."""

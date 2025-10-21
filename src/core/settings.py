@@ -1,31 +1,7 @@
-import logging
 import os
 from pathlib import Path
 
 from PyQt6.QtCore import QLocale, QSettings
-
-def setup_logging():
-    """Setup logging for the application."""
-
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.WARNING)
-
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.WARNING)
-    console_handler.setFormatter(formatter)
-
-    root_logger.addHandler(console_handler)
-
-settings_logger = logging.getLogger("Settings")
-settings_logger.setLevel(logging.WARNING)
 
 class SettingsManager:
     def __init__(self, organization_name: str, application_name: str):
@@ -55,8 +31,7 @@ class SettingsManager:
             if lang_code in ["en", "ru"]:
                 return lang_code
         except Exception as e:
-            settings_logger.warning(f"Could not autodetect system language: {e}")
-
+            pass
         return "ru"
 
     def save_language(self, lang_code: str):

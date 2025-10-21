@@ -5,11 +5,10 @@ This module is responsible for parsing Telegram export JSON files
 and creating type-safe domain objects.
 """
 
-import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from core.domain.models import (
+from src.core.domain.models import (
     Chat,
     GiveawayInfo,
     GiveawayResultsInfo,
@@ -22,8 +21,6 @@ from core.domain.models import (
     TodoListItem,
     User,
 )
-
-logger = logging.getLogger(__name__)
 
 def parse_user_from_dict(user_data: Dict[str, Any]) -> User:
     """Creates User object from dictionary."""
@@ -42,7 +39,6 @@ def parse_reaction_from_dict(reaction_data: Dict[str, Any]) -> Reaction:
             )
             authors.append(author)
         except ValueError as e:
-            logger.warning(f"Error parsing reaction author: {e}")
             continue
 
     emoji_text = ""
@@ -96,7 +92,6 @@ def parse_date_string(date_str: str) -> datetime:
         try:
             return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")
         except ValueError:
-            logger.warning(f"Failed to parse date: {date_str}")
             return datetime.now()
 
 def parse_todo_list_from_dict(todo_data: Dict[str, Any]) -> TodoList:
@@ -139,7 +134,6 @@ def parse_message_from_dict(msg_data: Dict[str, Any]) -> Message:
             reaction = parse_reaction_from_dict(reaction_data)
             reactions.append(reaction)
         except (ValueError, KeyError) as e:
-            logger.warning(f"Error parsing reaction: {e}")
             continue
 
     media = parse_media_from_dict(msg_data)
@@ -250,7 +244,6 @@ def parse_chat_from_dict(data: Dict[str, Any]) -> Chat:
     for i, msg_data in enumerate(data["messages"]):
         try:
             if not isinstance(msg_data, dict):
-                logger.warning(f"Message {i} is not a dictionary, skipping")
                 continue
 
             msg_type = msg_data.get("type", "message")
@@ -262,17 +255,16 @@ def parse_chat_from_dict(data: Dict[str, Any]) -> Chat:
                 service_message = parse_service_message_from_dict(msg_data)
                 messages.append(service_message)
             else:
-                logger.warning(f"Unknown message type: {msg_type}")
                 continue
 
         except (ValueError, KeyError) as e:
-            logger.warning(f"Error parsing message {i}: {e}")
             continue
 
     chat_type = _detect_chat_type(data, messages)
+    chat_name = data.get("name", "Unnamed Chat")
 
     return Chat(
-        name=data.get("name", "Unnamed Chat"), type=chat_type, messages=messages
+        name=chat_name, type=chat_type, messages=messages
     )
 
 def _detect_chat_type(

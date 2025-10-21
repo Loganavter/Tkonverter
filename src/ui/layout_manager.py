@@ -7,16 +7,13 @@ Provides adaptive layout functionality including:
 - Content overflow prevention
 """
 
-import logging
 from typing import Dict, Optional
 
 from PyQt6.QtCore import QSize, QTimer
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QApplication
 
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.resources.translations import tr
 
 class LayoutManager:
     """Layout manager for automatic size calculation."""
@@ -30,7 +27,8 @@ class LayoutManager:
 
     BUTTON_HEIGHT = 30
     ICON_BUTTON_SIZE = 33
-    TERMINAL_HEIGHT = 90
+    PREVIEW_HEIGHT = 450
+    TERMINAL_MIN_HEIGHT = 200
     DROP_ZONE_MIN_HEIGHT = 80
 
     LEFT_COLUMN_MIN = 240
@@ -44,7 +42,8 @@ class LayoutManager:
         self._size_timer = QTimer()
         self._size_timer.setSingleShot(True)
         self._size_timer.timeout.connect(self._recalculate_window_size)
-        self._calculated_preview_height = 200
+
+        self._calculated_preview_height = self.PREVIEW_HEIGHT
 
     def calculate_minimum_window_size(self) -> QSize:
         """Calculates minimum window size based on content."""
@@ -73,7 +72,6 @@ class LayoutManager:
             return calculated_size
 
         except Exception as e:
-            logger.error(f"Error calculating window size: {e}")
             return QSize(self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT)
 
     def calculate_left_column_width(self) -> float:
@@ -104,7 +102,6 @@ class LayoutManager:
             return width
 
         except Exception as e:
-            logger.error(f"Error calculating left column width: {e}")
             return self.LEFT_COLUMN_MIN
 
     def calculate_middle_column_width(self) -> float:
@@ -135,7 +132,6 @@ class LayoutManager:
             return width
 
         except Exception as e:
-            logger.error(f"Error calculating middle column width: {e}")
             return self.MIDDLE_COLUMN_MIN
 
     def calculate_right_column_width(self) -> float:
@@ -158,7 +154,6 @@ class LayoutManager:
             return width
 
         except Exception as e:
-            logger.error(f"Error calculating right column width: {e}")
             return self.RIGHT_COLUMN_MIN
 
     def _calculate_window_height(self) -> float:
@@ -179,7 +174,7 @@ class LayoutManager:
                 + self.BUTTON_HEIGHT
                 + self.GROUP_PADDING
             )
-            right_height = self._calculated_preview_height + self.TERMINAL_HEIGHT + self.BUTTON_HEIGHT
+            right_height = self.PREVIEW_HEIGHT + self.TERMINAL_MIN_HEIGHT + self.BUTTON_HEIGHT
 
             drop_zone_height = self.DROP_ZONE_MIN_HEIGHT
 
@@ -191,7 +186,6 @@ class LayoutManager:
             return final_height
 
         except Exception as e:
-            logger.error(f"Error calculating window height: {e}")
             return self.MIN_WINDOW_HEIGHT
 
     def _calculate_group_width(self, title: str, content_labels: list) -> float:
@@ -206,12 +200,12 @@ class LayoutManager:
                 label_width = font_metrics.horizontalAdvance(label)
                 content_width = max(content_width, label_width)
 
-            group_width = max(title_width + 40, content_width + 100)
+            # Increased padding from +100 to +150 to accommodate switches and controls
+            group_width = max(title_width + 40, content_width + 150)  # Reduced from 180 to 150
 
             return group_width
 
         except Exception as e:
-            logger.error(f"Error calculating group width: {e}")
             return 200
 
     def _calculate_buttons_width(self, buttons: list) -> float:
@@ -228,7 +222,6 @@ class LayoutManager:
             return total_width
 
         except Exception as e:
-            logger.error(f"Error calculating buttons width: {e}")
             return 200
 
     def schedule_size_recalculation(self, delay_ms: int = 100):
@@ -254,7 +247,7 @@ class LayoutManager:
                 self.main_window.resize(new_width, new_height)
 
         except Exception as e:
-            logger.error(f"Error recalculating window size: {e}")
+            pass
 
     def handle_language_change(self):
         """Handles language change and recalculates sizes."""
@@ -276,29 +269,8 @@ class LayoutManager:
     def calculate_and_set_preview_height(self, html_content: str):
         """
         Calculates and saves preview widget height based on HTML content.
+        Теперь не используется, так как превью имеет фиксированную высоту.
         """
-        try:
-            preview_widget = self.main_window.ui.preview_text_edit
 
-            preview_widget.setHtml(html_content)
-
-            import time
-            time.sleep(0.1)
-
-            doc_size = preview_widget.document().size()
-
-            raw_height = doc_size.height()
-            adjusted_height = raw_height + 40
-
-            self._calculated_preview_height = max(200, min(int(adjusted_height), 500))
-
-        except Exception as e:
-            logger.error(f"=== PREVIEW HEIGHT CALCULATION ERROR ===")
-            logger.error(f"Error type: {type(e).__name__}")
-            logger.error(f"Error message: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-
-            logger.warning("Setting default preview height: 200")
-            self._calculated_preview_height = 200
+        pass
 

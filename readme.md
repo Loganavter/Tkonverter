@@ -10,7 +10,7 @@
   <a href="https://github.com/Loganavter/Tkonverter/releases/latest">
     <img src="https://img.shields.io/github/v/release/Loganavter/Tkonverter?style=flat-square&label=latest%20release">
   </a>
-  <a href="LICENSE">
+  <a href="LICENSE.txt">
     <img src="https://img.shields.io/github/license/Loganavter/Tkonverter?style=flat-square">
   </a>
   <a href="https://github.com/Loganavter/Tkonverter/issues">
@@ -18,9 +18,14 @@
   </a>
 </p>
 
+<p align="center">
+  Read this in other languages:
+  <a href="README.ru.md">Русский</a>
+</p>
+
 ---
 
-## 📸 Screenshot
+## 📸 Preview
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Loganavter/media_archive/1.5.2/Tkonverter/screenshots/screenshot_2.png" width="24%">
@@ -30,20 +35,17 @@
 
 ---
 
-## 📖 Table of Contents
+## 🧭 Quick links
 
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [Development Story](#development-story)
-- [License](#license)
+- Install & run from source: <a href="docs/INSTALL.md">docs/INSTALL.md</a>
+- CLI Documentation: <a href="docs/CLI.md">docs/CLI.md</a>
+- Learn the app (Help): <a href="src/resources/help/en/introduction.md">EN Introduction</a> • <a href="src/resources/help/en/">EN All topics</a> • <a href="src/resources/help/ru/">RU Docs</a>
+- Contribute: <a href="CONTRIBUTING.md">CONTRIBUTING.md</a>
+- More: <a href="HISTORY.md">Development History</a> • <a href="VISION.md">Project Vision</a>
 
 ---
 
-## 🧩 Overview <a name="overview"></a>
+## 🧩 Overview
 
 Tkonverter is a free and open-source desktop application designed to convert large Telegram JSON exports into a clean `.txt` format.
 
@@ -53,7 +55,7 @@ While its primary goal is LLM pre-processing, it is a versatile tool that may be
 
 ---
 
-## 🚀 Key Features <a name="key-features"></a>
+## 🚀 Key Features
 
 ### 🔄 Advanced Conversion & Context Control
 - **Flexible Profiles**: Supports group chats, personal conversations, channels, and posts. The app automatically detects the correct profile in most cases.
@@ -74,10 +76,11 @@ While its primary goal is LLM pre-processing, it is a versatile tool that may be
 - **Cross-Platform**: Built with Python and PyQt6.
 - **Theming**: Supports light and dark modes, with auto-detection of your system's theme.
 - **Powerful Launcher**: A `launcher.sh` script simplifies dependency management in a virtual environment, running, and debugging.
+- **CLI Interface**: Full-featured command-line interface for automation and script integration.
 
 ---
 
-## 🛠️ Installation <a name="installation"></a>
+## 🛠 Installation
 
 Currently, the primary installation method is by running from the source code.
 
@@ -96,48 +99,45 @@ Installers and distribution packages are planned for the future. Contributions a
 
 ---
 
-## 🧪 Usage <a name="usage"></a>
+## 🧪 Usage
 
+### Graphical Interface
 1.  **Launch** the application: `./launcher.sh run`.
 2.  **Drag and drop** your `result.json` file (from a Telegram export) into the application window.
 3.  **Configure** the formatting options on the left panel.
 4.  **(Optional)** Click **"Recalculate"** to analyze tokens and open the chart for visualization.
 5.  **Click** **"Save to file..."** to export the result as a `.txt` file.
 
+### Command Line Interface (CLI)
+```bash
+# Simple conversion
+./tkonverter-cli.sh convert -i result.json -o output.txt
+
+# Convert with custom settings
+./tkonverter-cli.sh convert -i result.json -o output.txt --profile personal --no-time
+
+# Analyze statistics
+./tkonverter-cli.sh analyze -i result.json --chars-only
+
+# Show file information
+./tkonverter-cli.sh info -i result.json --detailed
+
+# Get help
+./tkonverter-cli.sh --help
+./tkonverter-cli.sh convert --help
+```
+
 ---
 
-## 🗺️ Roadmap <a name="roadmap"></a>
+## 🤝 Contributing
 
-The core application is complete and stable. The primary focus now is on making it easily accessible to users. Creation of installers for **Windows** and packages for **Linux (AUR, Flatpak)** is the next major milestone.
-
----
-
-## 🤝 Contributing <a name="contributing"></a>
-
-This project is in its early stages, so all contributions are highly welcome! Feel free to create [Issues](https://github.com/Loganavter/Tkonverter/issues) with bug reports or feature suggestions, and submit [Pull Requests](https://github.com/Loganavter/Tkonverter/pulls).
+Contributions are welcome! Please read <a href="CONTRIBUTING.md">CONTRIBUTING.md</a> for development setup, coding guidelines, and packaging notes. Report issues and propose PRs via GitHub.
 
 ---
 
-## 📄 License <a name="license"></a>
+## 📄 License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
-
-## 🧠 Development Story <a name="development-story"></a>
-<details>
-<summary>Show Development Story</summary>
-This project was born out of a personal need: to convert Telegram chats into a text format for analysis with AI models. What started as a simple script was transformed into a full-featured GUI application in just one week.
-
-Mid-late August 2025:
-The initial development was conducted entirely with Google's Gemini. We started with the intention of building the application on a Model-View-Presenter (MVP) architecture. However, as development progressed rapidly, I failed to strictly enforce the pattern. We quickly turned the "Model-View-Presenter" into a "Minimum-Viable-Product" with spaghetti code. I realized this about 80% of the way through (on day 4 or 5) when I started fighting race conditions that made adding the final features impossible.
-
-A full-scale refactoring was necessary. Gemini analyzed the entire project context and proposed a solid, high-level plan for rebuilding it. The plan was then executed using CursorAI with the Sonnet 4 Thinking model. In a single night, about 80% of the application was refactored into a clean, dependency-injected MVP architecture.
-
-For the final 20%—plus a few features adapted from my previous project, Improve-ImgSLI—I returned to Gemini. While Sonnet 4 is brilliant for executing large, well-defined tasks almost autonomously, it's less cost-effective for the meticulous process of debugging subtle issues. The final 2-3 days were an exhausting but necessary process of chasing down very elusive, often single-line bugs hidden within the new, clean architecture. It was a tedious process of analyzing loggers to find the root cause.
-
-Ultimately, the application was ready after about a week. This process also resulted in the creation of a reusable Fluent Design UI toolkit, which will significantly speed up future projects. Furthermore, it was a valuable experience in integrating AI components into desktop software. Now, only distribution remains.
-</details>
+This project is licensed under the MIT License. See <a href="LICENSE.txt">LICENSE.txt</a> for details.
 
 ---
 

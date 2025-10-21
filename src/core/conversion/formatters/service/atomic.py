@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from core.conversion.context import ConversionContext
-from core.conversion.utils import format_ttl_period, pluralize_ru, truncate_name
-from resources.translations import tr
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.utils import format_ttl_period, pluralize_ru, truncate_name
+from src.resources.translations import tr
 
 def format_channel_create(msg: dict, context: ConversionContext) -> str:
     actor = truncate_name(msg.get("actor", tr("System")), context=context)

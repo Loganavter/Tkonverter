@@ -1,14 +1,15 @@
-import logging
 from typing import Optional
 
 from PyQt6.QtCore import QObject, QThreadPool, pyqtSignal
 
-from core.application.chat_service import ChatService
-from core.domain.models import Chat
-from presenters.app_state import AppState
-from presenters.workers import ChatLoadWorker
+from src.core.application.chat_service import ChatService
+from src.core.domain.models import Chat
+from src.presenters.app_state import AppState
+from src.presenters.workers import ChatLoadWorker
 
-logger = logging.getLogger(__name__)
+def tr(key: str) -> str:
+    """Temporary translation function for debugging."""
+    return key
 
 class FilePresenter(QObject):
     """Presenter for managing file loading and drop zone functionality."""
@@ -39,7 +40,6 @@ class FilePresenter(QObject):
     def on_file_dropped(self, path: str):
         """Handles file drag-and-drop."""
         if self._app_state.is_processing:
-            logger.warning("Application is already processing a file, ignoring new one")
             return
 
         self.set_processing_state_in_view(True, message_key="Loading file...")
@@ -66,6 +66,16 @@ class FilePresenter(QObject):
                     self._app_state.set_config_value("profile", detected_profile)
                     self.profile_auto_detected.emit(detected_profile)
 
+                    if detected_profile == "personal":
+
+                        chat_stats = self._chat_service.get_chat_statistics(result)
+                        if chat_stats and "most_active_user" in chat_stats:
+                            partner_name = chat_stats["most_active_user"]
+                            if partner_name and partner_name != tr("Partner"):
+                                self._app_state.set_config_value("partner_name", partner_name)
+
+                                self._view.ui.line_edit_partner_name.setText(partner_name)
+
             file_path = self._chat_service.get_current_file_path()
             self._app_state.set_chat(result, file_path)
 
@@ -85,7 +95,6 @@ class FilePresenter(QObject):
             raw_text, title = self._preview_service.generate_preview_text(config)
             self.preview_updated.emit(raw_text, title)
         except Exception as e:
-            logger.error(f"Error updating preview: {e}")
             error_message = f"Error: {e}"
             self.preview_updated.emit(error_message, "Preview Error")
 
@@ -106,10 +115,10 @@ class FilePresenter(QObject):
         """Updates drop zone style based on state."""
         if self._is_drop_zone_drag_active:
             self.set_drop_zone_style_command.emit(
-                "border: 2px solid #0078d4; background-color: rgba(0, 120, 212, 0.1);"
+                "border: 2px solid #0078d4; background-color: rgba(0, 120, 212, 0.1); border-radius: 10px; padding: 15px; font-size: 14px;"
             )
         else:
-            self.set_drop_zone_style_command.emit("border: 2px dashed #aaa;")
+            self.set_drop_zone_style_command.emit("border: 2px dashed #aaa; border-radius: 10px; padding: 15px; font-size: 14px;")
 
     def set_processing_state_in_view(self, is_processing: bool, message: str = "", message_key: str = None, format_args: dict = None):
         """Proxy method for calling set_processing_state in view."""
@@ -123,7 +132,7 @@ class FilePresenter(QObject):
         if hasattr(self._view, 'set_processing_state'):
             self._view.set_processing_state(is_processing, None, message_key, format_args)
         else:
-            logger.warning("View does not have set_processing_state method")
+            pass
 
     def get_current_file_path(self) -> Optional[str]:
         """Returns the path to the currently loaded file."""

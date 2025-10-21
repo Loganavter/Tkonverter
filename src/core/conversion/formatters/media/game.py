@@ -1,5 +1,5 @@
-from core.conversion.context import ConversionContext
-from resources.translations import tr
+from src.core.conversion.context import ConversionContext
+from src.resources.translations import tr
 
 def format_game(game_data: dict, context: ConversionContext) -> str:
     title = game_data.get("game_title")

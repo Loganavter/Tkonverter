@@ -1,8 +1,8 @@
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
-from ui.icon_manager import AppIcon, get_icon
-from ui.theme import ThemeManager
+from src.ui.icon_manager import AppIcon, get_app_icon
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class IconButton(QWidget):
     clicked = pyqtSignal()
@@ -56,11 +56,11 @@ class IconButton(QWidget):
         self._update_icon()
 
     def _update_icon(self):
-        pixmap = get_icon(self._icon).pixmap(self._icon_size)
+        pixmap = get_app_icon(self._icon).pixmap(self._icon_size)
         self.icon_label.setPixmap(pixmap)
 
     def enterEvent(self, event):
-        if not self._flyout_is_open:
+        if not self._flyout_is_open and self.underMouse():
             self.setProperty("state", "hover")
             self.style().unpolish(self)
             self.style().polish(self)

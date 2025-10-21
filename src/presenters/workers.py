@@ -1,20 +1,18 @@
-import logging
 import subprocess
 import sys
 import threading
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, Tuple
 
 from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
+from PyQt6.QtWidgets import QApplication
 
-from core.analysis.tree_analyzer import TreeNode
-from core.application.analysis_service import AnalysisService
-from core.application.chat_service import ChatLoadError, ChatService
-from core.application.conversion_service import ConversionService
-from core.application.tokenizer_service import TokenizerError, TokenizerService
-from core.domain.models import AnalysisResult, Chat
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.application.analysis_service import AnalysisService
+from src.core.application.chat_service import ChatLoadError, ChatService
+from src.core.application.conversion_service import ConversionService
+from src.core.application.tokenizer_service import TokenizerError, TokenizerService
+from src.core.domain.models import AnalysisResult, Chat
+from src.resources.translations import tr
 
 class WorkerSignals(QObject):
     """Signals for worker threads."""
@@ -44,7 +42,6 @@ class ChatLoadWorker(QRunnable):
         except ChatLoadError as e:
             self.signals.finished.emit(False, str(e), None)
         except Exception as e:
-            logger.error(f"Unexpected error loading chat: {e}")
             self.signals.finished.emit(
                 False, tr("Unexpected error: {error}").format(error=str(e)), None
             )
@@ -83,7 +80,6 @@ class ConversionWorker(QRunnable):
 
             self.signals.finished.emit(True, self.save_path, None)
         except Exception as e:
-            logger.error(f"Conversion error: {e}")
             self.signals.finished.emit(False, str(e), None)
 
 class AnalysisWorker(QRunnable):
@@ -95,12 +91,14 @@ class AnalysisWorker(QRunnable):
         chat: Chat,
         config: Dict[str, Any],
         tokenizer: Optional[Any] = None,
+        disabled_dates: Optional[Set[Tuple[str, str, str]]] = None,
     ):
         super().__init__()
         self.analysis_service = analysis_service
         self.chat = chat
         self.config = config
         self.tokenizer = tokenizer
+        self.disabled_dates = disabled_dates or set()
         self.signals = WorkerSignals()
         self._is_cancelled = False
         self._lock = threading.Lock()
@@ -124,11 +122,11 @@ class AnalysisWorker(QRunnable):
 
             if self.tokenizer:
                 result = self.analysis_service.calculate_token_stats(
-                    self.chat, self.config, self.tokenizer
+                    self.chat, self.config, self.tokenizer, self.disabled_dates
                 )
             else:
                 result = self.analysis_service.calculate_character_stats(
-                    self.chat, self.config
+                    self.chat, self.config, self.disabled_dates
                 )
 
             if self.is_cancelled():
@@ -138,7 +136,6 @@ class AnalysisWorker(QRunnable):
             self.signals.finished.emit(True, tr("Analysis completed"), result)
         except Exception as e:
             if not self.is_cancelled():
-                logger.error(f"Analysis error: {e}")
                 self.signals.finished.emit(False, str(e), None)
 
 class TreeBuildWorker(QRunnable):
@@ -187,7 +184,6 @@ class TreeBuildWorker(QRunnable):
             self.signals.finished.emit(True, tr("Tree built successfully"), tree)
         except Exception as e:
             if not self.is_cancelled():
-                logger.error(f"Tree building error: {e}")
                 self.signals.finished.emit(False, str(e), None)
 
 class TokenizerLoadWorker(QRunnable):
@@ -235,7 +231,6 @@ class TokenizerLoadWorker(QRunnable):
                 self.signals.finished.emit(False, str(e), None)
         except Exception as e:
             if not self.is_cancelled():
-                logger.error(f"Unexpected tokenizer error: {e}")
                 self.signals.finished.emit(False, str(e), None)
 
 class AIInstallerWorker(QRunnable):
@@ -341,3 +336,110 @@ class AIInstallerWorker(QRunnable):
                 )
         except Exception as e:
             self.signals.finished.emit(False, str(e))
+
+def sync_load_chat(chat_service: ChatService, file_path: str) -> tuple[bool, str, object]:
+    """
+    Синхронная загрузка чата из файла.
+    Returns: (success, message, chat_or_none)
+    """
+    try:
+        chat = chat_service.load_chat_from_file(file_path)
+        QApplication.processEvents()
+        return True, tr("File loaded successfully"), chat
+    except ChatLoadError as e:
+        return False, str(e), None
+    except Exception as e:
+        return False, tr("Unexpected error: {error}").format(error=str(e)), None
+
+def sync_convert_chat(
+    conversion_service: ConversionService,
+    chat: Chat,
+    config: Dict[str, Any],
+    save_path: str,
+    disabled_nodes: Optional[Set[TreeNode]] = None,
+) -> tuple[bool, str]:
+    """
+    Синхронное сохранение чата в текстовый файл.
+    Returns: (success, path_or_error_message)
+    """
+    try:
+        text = conversion_service.convert_to_text(
+            chat,
+            config,
+            html_mode=False,
+            disabled_nodes=disabled_nodes or set(),
+        )
+        QApplication.processEvents()
+
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+        return True, save_path
+    except Exception as e:
+        return False, str(e)
+
+def sync_analyze_chat(
+    analysis_service: AnalysisService,
+    chat: Chat,
+    config: Dict[str, Any],
+    tokenizer: Optional[Any] = None,
+    disabled_dates: Optional[Set[Tuple[str, str, str]]] = None,
+) -> tuple[bool, str, Optional[AnalysisResult]]:
+    """
+    Синхронный анализ чата (токены или символы).
+    Returns: (success, message, result_or_none)
+    """
+    try:
+        if tokenizer:
+            result = analysis_service.calculate_token_stats(
+                chat, config, tokenizer, disabled_dates or set()
+            )
+        else:
+            result = analysis_service.calculate_character_stats(
+                chat, config, disabled_dates or set()
+            )
+        QApplication.processEvents()
+
+        return True, tr("Analysis completed"), result
+    except Exception as e:
+        return False, str(e), None
+
+def sync_build_tree(
+    analysis_service: AnalysisService,
+    analysis_result: AnalysisResult,
+    config: Dict[str, Any],
+) -> tuple[bool, str, Optional[TreeNode]]:
+    """
+    Синхронное построение дерева анализа.
+    Returns: (success, message, tree_or_none)
+    """
+    try:
+        tree = analysis_service.build_analysis_tree(analysis_result, config)
+        QApplication.processEvents()
+        return True, tr("Tree built successfully"), tree
+    except Exception as e:
+        return False, str(e), None
+
+def sync_load_tokenizer(
+    tokenizer_service: TokenizerService,
+    model_name: str,
+    progress_callback=None,
+) -> tuple[bool, str, Optional[Any]]:
+    """
+    Синхронная загрузка токенизатора.
+    Returns: (success, message, tokenizer_or_none)
+    """
+    try:
+        if progress_callback:
+            progress_callback(tr("Loading tokenizer..."))
+
+        tokenizer = tokenizer_service.load_tokenizer(
+            model_name, local_only=False, progress_callback=progress_callback
+        )
+        QApplication.processEvents()
+
+        return True, tr("Tokenizer loaded successfully"), tokenizer
+    except TokenizerError as e:
+        return False, str(e), None
+    except Exception as e:
+        return False, str(e), None

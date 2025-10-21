@@ -13,12 +13,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from resources.translations import tr
-from ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from ui.icon_manager import AppIcon
-from ui.widgets.atomic.custom_button import CustomButton
-from ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from utils.paths import resource_path
+from src.resources.translations import tr
+from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
+from src.ui.icon_manager import AppIcon, get_app_icon
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from src.shared_toolkit.utils.paths import resource_path
 
 class ExportDialog(QDialog):
 
@@ -56,7 +56,7 @@ class ExportDialog(QDialog):
         dir_label = QLabel(tr("Folder to save:"))
         dir_label.setObjectName("dir_label")
         self.edit_dir = CustomLineEdit()
-        self.btn_browse_dir = CustomButton(AppIcon.FOLDER_OPEN, tr("Browse..."))
+        self.btn_browse_dir = CustomButton(get_app_icon(AppIcon.FOLDER_OPEN), tr("Browse..."))
         self.btn_browse_dir.clicked.connect(self._choose_directory)
 
         dir_row = QHBoxLayout()

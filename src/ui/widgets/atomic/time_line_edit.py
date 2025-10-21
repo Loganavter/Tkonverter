@@ -2,8 +2,8 @@ from PyQt6.QtCore import QRectF, Qt, QTime, pyqtSignal, QEvent
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QHBoxLayout, QTimeEdit, QWidget
 
-from ui.theme import ThemeManager
-from ui.widgets.helpers.underline_painter import UnderlineConfig, draw_bottom_underline
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.helpers.underline_painter import UnderlineConfig, draw_bottom_underline
 
 class TimeLineEdit(QWidget):
     RADIUS = 6

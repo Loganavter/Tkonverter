@@ -1,6 +1,6 @@
-from core.conversion.context import ConversionContext
-from resources.translations import tr
-from core.conversion.utils import pluralize_ru
+from src.core.conversion.context import ConversionContext
+from src.resources.translations import tr
+from src.core.conversion.utils import pluralize_ru
 
 def format_poll(poll_data: dict, context: ConversionContext) -> str:
     lines = [tr("[Poll]")]

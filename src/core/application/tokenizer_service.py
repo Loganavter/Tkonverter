@@ -6,10 +6,7 @@ from Hugging Face without direct dependency on PyQt.
 """
 
 import importlib.util
-import logging
 from typing import Any, Callable, Dict, Optional
-
-logger = logging.getLogger(__name__)
 
 TRANSFORMERS_AVAILABLE = importlib.util.find_spec("transformers") is not None
 
@@ -168,7 +165,6 @@ class TokenizerService:
                 "model_max_length": model_max_length,
             }
         except Exception as e:
-            logger.warning(f"Error getting tokenizer info: {e}")
             return {
                 "loaded": True,
                 "model_name": self._current_model_name,

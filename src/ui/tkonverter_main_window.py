@@ -1,25 +1,21 @@
-import logging
 import os
 import re
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QEvent
 from PyQt6.QtGui import QIcon, QMouseEvent
 from PyQt6.QtWidgets import QApplication, QDialog, QLabel, QMessageBox, QWidget
 
-from core.dependency_injection import setup_container
-from core.conversion.utils import markdown_to_html_for_preview
-from core.settings import SettingsManager
-from presenters.modern_presenter import ModernTkonverterPresenter
-from resources.translations import set_language, tr
-from ui.font_manager import FontManager
-from ui.layout_manager import LayoutManager
-from ui.theme import ThemeManager
-from ui.tkonverter_main_window_ui import Ui_TkonverterMainWindow
-from ui.widgets.atomic.minimalist_scrollbar import MinimalistScrollBar
-from utils.paths import resource_path
-
-main_window_logger = logging.getLogger("MainWindow")
-main_window_logger.setLevel(logging.ERROR)
+from src.core.dependency_injection import setup_container
+from src.core.conversion.utils import markdown_to_html_for_preview
+from src.core.settings import SettingsManager
+from src.presenters.modern_presenter import ModernTkonverterPresenter
+from src.resources.translations import set_language, tr
+from src.shared_toolkit.ui.managers.font_manager import FontManager
+from src.ui.layout_manager import LayoutManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.ui.tkonverter_main_window_ui import Ui_TkonverterMainWindow
+from src.shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
+from src.shared_toolkit.utils.paths import resource_path
 
 MAX_LOG_MESSAGES = 200
 
@@ -36,6 +32,7 @@ class TkonverterMainWindow(QWidget):
     def __init__(self, initial_theme: str, parent=None):
         super().__init__(parent)
         self.setAutoFillBackground(True)
+
         self._log_messages: list[tuple[str, str, dict]] = []
         self._initial_sizing_done = False
 
@@ -109,6 +106,15 @@ class TkonverterMainWindow(QWidget):
         self.ui.left_column.setMinimumWidth(left_min)
         self.ui.middle_column.setMinimumWidth(middle_min)
         self.ui.right_column.setMinimumWidth(right_min)
+        
+        # Set maximum widths to prevent columns from expanding too much
+        self.ui.left_column.setMaximumWidth(left_min + 100)  # Allow some expansion but not too much
+        self.ui.middle_column.setMaximumWidth(middle_min + 150)  # Middle column can expand more
+        self.ui.right_column.setMaximumWidth(right_min + 200)  # Right column can expand most
+
+        # Force layout update after setting column sizes
+        self.updateGeometry()
+        self.update()
 
         self._update_ui_from_model()
         self._connect_ui_signals()
@@ -127,7 +133,7 @@ class TkonverterMainWindow(QWidget):
             self.updateGeometry()
 
         except Exception as e:
-            main_window_logger.error(f"Error updating font: {e}")
+            pass
 
     def _rebuild_terminal_content(self):
         """Rebuilds terminal content with current styles."""
@@ -162,7 +168,6 @@ class TkonverterMainWindow(QWidget):
             else:
                 display_message = translated_text
         except (KeyError, ValueError, IndexError) as e:
-            main_window_logger.error(f"Error translating/formatting log: {e}. Key: '{message_or_key}', Arguments: {format_args}")
             display_message = message_or_key
         return display_message
 
@@ -257,6 +262,16 @@ class TkonverterMainWindow(QWidget):
         is_personal = profile == "personal"
         self.ui.personal_names_group.setVisible(is_personal)
 
+        if is_personal:
+
+            partner_name = self.presenter._app_state.get_config_value("partner_name")
+            if partner_name and partner_name != tr("Partner"):
+                self.ui.line_edit_partner_name.setText(partner_name)
+
+            my_name = self.presenter._app_state.get_config_value("my_name")
+            if my_name and my_name != tr("Me"):
+                self.ui.line_edit_my_name.setText(my_name)
+
         self.ui.radio_group.blockSignals(False)
         self.ui.radio_channel.blockSignals(False)
         self.ui.radio_posts.blockSignals(False)
@@ -280,10 +295,6 @@ class TkonverterMainWindow(QWidget):
         if hasattr(self.ui, "retranslate_ui"):
             self.ui.retranslate_ui()
 
-        from .widgets.atomic.fluent_switch import FluentSwitch
-        for switch in self.findChildren(FluentSwitch):
-            switch.retranslate_ui()
-
         self._rebuild_terminal_content()
 
         self._invalidate_adaptive_widgets_cache()
@@ -293,7 +304,7 @@ class TkonverterMainWindow(QWidget):
         self.retranslate_dynamic_ui()
 
         self._update_control_alignment()
-        self.layout_manager.handle_language_change()
+        self.layout_manager.handle_language_change()  # Add this line for proper recalculation
 
         self.updateGeometry()
         self.update()
@@ -382,13 +393,14 @@ class TkonverterMainWindow(QWidget):
 
     def _connect_presenter_signals(self):
         """Connects signals from presenter to view."""
-
         self.presenter.chat_loaded.connect(self.on_chat_loaded)
         self.presenter.profile_auto_detected.connect(self.set_profile_in_ui)
         self.presenter.preview_updated.connect(self.on_preview_updated)
         self.presenter.analysis_unit_changed.connect(self.set_analysis_unit)
         self.presenter.save_completed.connect(self.on_save_completed)
         self.presenter.analysis_count_updated.connect(self.on_analysis_count_updated)
+
+        self.presenter.analysis_completed.connect(self._on_analysis_completed_update)
         self.presenter.disabled_nodes_changed.connect(self._update_analysis_display)
 
         self.presenter.language_changed.connect(self._on_language_changed)
@@ -421,7 +433,6 @@ class TkonverterMainWindow(QWidget):
                     format_args={"name": chat_name}
                 )
         else:
-            main_window_logger.error(f"Chat loading error: {message}")
             self.show_status(message, is_error=True)
 
     def on_preview_updated(self, raw_text: str, title: str):
@@ -457,7 +468,6 @@ class TkonverterMainWindow(QWidget):
         self._update_analysis_display()
 
         if count > 0:
-
             if unit == "tokens":
                 message_key = "Tokens calculated: {count}"
             else:
@@ -468,6 +478,10 @@ class TkonverterMainWindow(QWidget):
                 message_key=message_key,
                 format_args={"count": f"{count:,}"}
             )
+
+    def _on_analysis_completed_update(self, tree_node):
+        """Forces an update of the analysis display when the tree changes."""
+        self._update_analysis_display()
 
     def _show_diagram_placeholder(self):
         QMessageBox.information(
@@ -530,31 +544,29 @@ class TkonverterMainWindow(QWidget):
         QTimer.singleShot(100, lambda: self.ui.preview_text_edit.verticalScrollBar().setValue(0))
 
     def _update_analysis_display(self):
-        """Updates all widgets related to analysis based on current state."""
+        """Обновляет счётчики на основе AppState (без вызовов presenter)"""
         app_state = self.presenter.get_app_state()
+
+        if not app_state.has_analysis_data():
+            self.ui.token_count_label.setText(tr("N/A"))
+            self.ui.filtered_token_count_label.hide()
+            return
+
+        total = app_state.analysis_result.total_count
+        filtered = app_state.get_filtered_count()
         unit = app_state.last_analysis_unit
 
         label_key = "Tokens:" if unit == "tokens" else "Characters:"
         self.ui.tokens_label.setText(tr(label_key))
 
-        if not app_state.has_analysis_data():
-            self.ui.token_count_label.setText(tr("N/A"))
-            self.ui.token_count_label.show()
-            self.ui.filtered_token_count_label.hide()
-            return
-
-        total_count = app_state.analysis_result.total_count
-        stats = self.presenter.get_analysis_stats()
-        filtered_count = stats.get("filtered_count", total_count) if stats else total_count
-
-        has_filter = app_state.has_disabled_nodes() and int(filtered_count) != total_count
+        has_filter = app_state.has_disabled_nodes() and filtered != total
 
         if has_filter:
-            self.ui.token_count_label.setText(f"<s>{total_count:,}</s>")
-            self.ui.filtered_token_count_label.setText(f"→ {filtered_count:,.0f}")
+            self.ui.token_count_label.setText(f"<s>{total:,}</s>")
+            self.ui.filtered_token_count_label.setText(f"→ {filtered:,}")
             self.ui.filtered_token_count_label.show()
         else:
-            self.ui.token_count_label.setText(f"{total_count:,}")
+            self.ui.token_count_label.setText(f"{total:,}")
             self.ui.filtered_token_count_label.hide()
 
         self.ui.token_count_label.show()
@@ -598,6 +610,24 @@ class TkonverterMainWindow(QWidget):
     def retranslate_dynamic_ui(self):
         """Translates dynamic parts of UI that are not handled by retranslate_ui."""
         self._update_analysis_display()
+        self._update_switch_translations()
+
+    def _update_switch_translations(self):
+        """Обновляет переводы для всех свитчеров в интерфейсе."""
+        switches = [
+            self.ui.switch_show_time,
+            self.ui.switch_show_markdown,
+            self.ui.switch_show_reactions,
+            self.ui.switch_reaction_authors,
+            self.ui.switch_show_optimization,
+            self.ui.switch_show_links,
+            self.ui.switch_show_tech_info,
+            self.ui.switch_show_service_notifications,
+        ]
+
+        for switch in switches:
+            if hasattr(switch, 'update_translations'):
+                switch.update_translations()
 
     def show_status(
         self,
@@ -655,15 +685,13 @@ class TkonverterMainWindow(QWidget):
             self.resize(initial_width, initial_height)
 
         except Exception as e:
-            main_window_logger.error(f"Error setting up automatic sizes: {e}")
             import traceback
-            main_window_logger.error(f"Traceback: {traceback.format_exc()}")
             self.resize(1000, 600)
 
     def _invalidate_adaptive_widgets_cache(self):
         """Resets sizes of all adaptive widgets."""
         try:
-            from ui.widgets.atomic.adaptive_label import AdaptiveLabel, CompactLabel
+            from src.ui.widgets.atomic.adaptive_label import AdaptiveLabel, CompactLabel
 
             for widget in self.findChildren(AdaptiveLabel):
                 if hasattr(widget, "invalidate_size_cache"):
@@ -674,7 +702,7 @@ class TkonverterMainWindow(QWidget):
                     widget.invalidate_size_cache()
 
         except Exception as e:
-            main_window_logger.error(f"Error resetting adaptive widget caches: {e}")
+            pass
 
     def _update_preview_styles(self):
         """Updates CSS styles for the preview QTextEdit."""
@@ -719,18 +747,7 @@ class TkonverterMainWindow(QWidget):
             if hasattr(self.ui, "retranslate_ui"):
                 self.ui.retranslate_ui()
         except Exception as e:
-            main_window_logger.error(f"Error updating translations: {e}")
-
-    def refresh_theme_styles(self):
-        """Forces main window styles to update."""
-        try:
-            self.style().unpolish(self)
-            self.style().polish(self)
-            self._update_terminal_styles()
-            self.update()
-            self.updateGeometry()
-        except Exception as e:
-            main_window_logger.error(f"Error refreshing main window styles: {e}")
+            pass
 
     def show_message_box(self, title: str, text: str, icon_type: QMessageBox.Icon = QMessageBox.Icon.Information):
         """Shows message box."""
@@ -759,7 +776,7 @@ class TkonverterMainWindow(QWidget):
             QTimer.singleShot(50, lambda: self._force_dialog_focus(dialog, dialog_name))
 
         except Exception as e:
-            main_window_logger.error(f"Error bringing up {dialog_name} dialog: {e}")
+            pass
 
     def _force_dialog_focus(self, dialog: QDialog, dialog_name: str):
         """Forcibly sets focus on dialog."""
@@ -774,7 +791,7 @@ class TkonverterMainWindow(QWidget):
                     dialog.activateWindow()
 
         except Exception as e:
-            main_window_logger.error(f"Error forcing {dialog_name} dialog activation: {e}")
+            pass
 
     def showEvent(self, event):
         """Called before the window is shown for the first time."""
@@ -788,17 +805,15 @@ class TkonverterMainWindow(QWidget):
                 if longest_preview_html:
                     self.layout_manager.calculate_and_set_preview_height(longest_preview_html)
                 else:
-                    main_window_logger.warning("HTML not received, skipping preview height calculation.")
+                    pass
 
                 self._initial_sizing_done = True
 
                 self.presenter._generate_preview()
 
             except Exception as e:
-                main_window_logger.error(f"Error during initial size setup: {e}")
                 import traceback
-                main_window_logger.error(f"Traceback: {traceback.format_exc()}")
-                main_window_logger.warning("Continuing without preview size setup")
+                pass
 
     def mousePressEvent(self, event: QMouseEvent):
         """Removes focus from input fields when clicking on empty area."""
