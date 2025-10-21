@@ -1,14 +1,14 @@
 import re
 from datetime import datetime
 
-from core.conversion.context import ConversionContext
-from core.conversion.formatters.media_formatter import format_media
-from core.conversion.utils import (
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.formatters.media_formatter import format_media
+from src.core.conversion.utils import (
     process_text_to_plain,
     sanitize_forward_name,
     truncate_name,
 )
-from resources.translations import tr
+from src.resources.translations import tr
 
 def _parse_time_to_seconds(time_str: str) -> int:
     if not re.match(r"^\d{1,2}:\d{2}$", time_str):

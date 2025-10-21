@@ -1,11 +1,8 @@
-import logging
 from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from presenters.app_state import AppState
-
-logger = logging.getLogger(__name__)
+from src.presenters.app_state import AppState
 
 class ConfigPresenter(QObject):
     """Presenter for managing configuration panel (Profile, Names, Options)."""
@@ -63,7 +60,6 @@ class ConfigPresenter(QObject):
             raw_text, title = self._preview_service.generate_preview_text(config)
             self.preview_updated.emit(raw_text, title)
         except Exception as e:
-            logger.error(f"Error updating preview: {e}")
             error_message = f"Error: {e}"
             self.preview_updated.emit(error_message, "Preview Error")
 

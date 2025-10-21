@@ -1,5 +1,3 @@
-import logging
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QGridLayout,
@@ -11,19 +9,16 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from resources.translations import tr
-from ui.icon_manager import AppIcon
-from ui.widgets.atomic.adaptive_label import AdaptiveLabel, CompactLabel
-from ui.widgets.atomic.drop_zone_label import DropZoneLabel
-from ui.widgets.atomic.custom_button import CustomButton
-from ui.widgets.atomic.custom_group_widget import CustomGroupBuilder
-from ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from ui.widgets.atomic.fluent_radio import FluentRadioButton
-from ui.widgets.atomic.fluent_switch import FluentSwitch
-from ui.widgets.atomic.time_line_edit import TimeLineEdit
-
-ui_logger = logging.getLogger("UI")
-ui_logger.setLevel(logging.WARNING)
+from src.resources.translations import tr
+from src.ui.icon_manager import AppIcon, get_app_icon
+from src.ui.widgets.atomic.adaptive_label import AdaptiveLabel, CompactLabel
+from src.ui.widgets.atomic.drop_zone_label import DropZoneLabel
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.ui.widgets.atomic.custom_group_widget import CustomGroupBuilder
+from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from src.shared_toolkit.ui.widgets.atomic.fluent_radio import FluentRadioButton
+from src.shared_toolkit.ui.widgets.atomic.fluent_switch import FluentSwitch
+from src.ui.widgets.atomic.time_line_edit import TimeLineEdit
 
 class Ui_TkonverterMainWindow(object):
     def setupUi(self, MainWindow):
@@ -39,16 +34,22 @@ class Ui_TkonverterMainWindow(object):
         left_layout = QVBoxLayout(self.left_column)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(10)
+        # Set proper size policy for left column
+        self.left_column.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         self.middle_column = QWidget()
         middle_layout = QVBoxLayout(self.middle_column)
         middle_layout.setContentsMargins(0, 0, 0, 0)
         middle_layout.setSpacing(10)
+        # Set proper size policy for middle column
+        self.middle_column.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         self.right_column = QWidget()
         right_layout = QVBoxLayout(self.right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
+        # Set proper size policy for right column
+        self.right_column.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         self.profile_group, profile_layout, self.profile_group_title = (
             CustomGroupBuilder.create_styled_group(tr("Profile"))
@@ -223,9 +224,9 @@ class Ui_TkonverterMainWindow(object):
 
         ai_buttons_layout = QHBoxLayout()
         self.recalculate_button = CustomButton(None, tr("Calculate"))
-        self.calendar_button = CustomButton(AppIcon.CALENDAR, "")
+        self.calendar_button = CustomButton(get_app_icon(AppIcon.CALENDAR), "")
         self.calendar_button.setToolTip(tr("Calendar View"))
-        self.diagram_button = CustomButton(AppIcon.CHART, "")
+        self.diagram_button = CustomButton(get_app_icon(AppIcon.CHART), "")
         self.diagram_button.setToolTip(tr("Token Analysis"))
         ai_buttons_layout.addStretch()
         ai_buttons_layout.addWidget(self.recalculate_button)
@@ -260,13 +261,16 @@ class Ui_TkonverterMainWindow(object):
         )
         left_part_layout.addWidget(self.drop_zone, 1)
 
+        self.right_splitter = QSplitter(Qt.Orientation.Vertical)
+
         (
             self.preview_group,
             preview_layout,
             self.preview_group_title_label,
         ) = CustomGroupBuilder.create_styled_group(tr("Preview"))
 
-        self.preview_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview_group.setFixedHeight(450)
+        self.preview_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.preview_text_edit = QTextEdit()
         self.preview_text_edit.setObjectName("previewTextEdit")
@@ -289,7 +293,17 @@ class Ui_TkonverterMainWindow(object):
         )
         self.log_output.viewport().setCursor(Qt.CursorShape.ArrowCursor)
         terminal_layout.addWidget(self.log_output)
-        self.terminal_group.setFixedHeight(90)
+
+        self.terminal_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        self.right_splitter.addWidget(self.preview_group)
+        self.right_splitter.addWidget(self.terminal_group)
+
+        self.right_splitter.setSizes([450, 200])
+        self.right_splitter.setStretchFactor(0, 0)
+        self.right_splitter.setStretchFactor(1, 1)
+        self.right_splitter.setCollapsible(0, False)
+        self.right_splitter.setCollapsible(1, True)
 
         bottom_layout = QHBoxLayout()
 
@@ -298,13 +312,13 @@ class Ui_TkonverterMainWindow(object):
         button_container_layout.setContentsMargins(0, 0, 0, 0)
         button_container_layout.setSpacing(6)
 
-        self.install_manager_button = CustomButton(AppIcon.DOWNLOAD, "")
+        self.install_manager_button = CustomButton(get_app_icon(AppIcon.DOWNLOAD), "")
         self.install_manager_button.setToolTip(tr("Installation Manager"))
-        self.settings_button = CustomButton(AppIcon.SETTINGS, "")
+        self.settings_button = CustomButton(get_app_icon(AppIcon.SETTINGS), "")
         self.settings_button.setToolTip(tr("Settings"))
-        self.help_button = CustomButton(AppIcon.HELP, "")
+        self.help_button = CustomButton(get_app_icon(AppIcon.HELP), "")
         self.help_button.setToolTip(tr("Help"))
-        self.save_button = CustomButton(AppIcon.SAVE, tr("Save to file..."))
+        self.save_button = CustomButton(get_app_icon(AppIcon.SAVE), tr("Save to file..."))
         self.save_button.setProperty("class", "primary")
 
         button_container_layout.addWidget(self.install_manager_button)
@@ -315,10 +329,7 @@ class Ui_TkonverterMainWindow(object):
         bottom_layout.addStretch()
         bottom_layout.addWidget(button_container)
 
-        right_layout.addWidget(self.preview_group)
-
-        right_layout.addWidget(self.terminal_group)
-
+        right_layout.addWidget(self.right_splitter)
         right_layout.addLayout(bottom_layout)
 
         self.main_splitter.addWidget(self.left_part)

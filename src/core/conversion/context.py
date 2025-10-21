@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
-from core.conversion.utils import sanitize_forward_name, truncate_name
-from resources.translations import tr
+from src.core.conversion.utils import sanitize_forward_name, truncate_name
+from src.resources.translations import tr
 
 @dataclass
 class ConversionContext:

@@ -3,9 +3,9 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from resources.translations import tr
-from ui.widgets.atomic.custom_button import CustomButton
-from utils.paths import resource_path
+from src.resources.translations import tr
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.utils.paths import resource_path
 
 def setup_dialog_scaffold(
     dialog: QDialog,

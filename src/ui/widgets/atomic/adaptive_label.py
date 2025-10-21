@@ -136,7 +136,21 @@ class CompactLabel(AdaptiveLabel):
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
-        self._min_width = 80
+        self._min_width = 100  # Reduced from 120 to 100 for less excessive sizing
         self.setMinimumWidth(self._min_width)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def sizeHint(self):
+        """Returns preferred size with better text width calculation."""
+        hint = super().sizeHint()
+        
+        # Calculate actual text width with proper padding
+        if self._original_text:
+            font_metrics = QFontMetrics(self.font())
+            text_width = font_metrics.horizontalAdvance(self._original_text)
+            # Add padding for better display
+            preferred_width = text_width + 12  # Reduced from 20 to 12
+            hint.setWidth(max(preferred_width, self._min_width))
+        
+        return hint

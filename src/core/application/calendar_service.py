@@ -2,7 +2,6 @@
 Service for working with calendar and date filtering.
 """
 
-import logging
 from bisect import bisect_left
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -11,9 +10,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from PyQt6.QtCore import QDate
 
-from core.analysis.tree_analyzer import TreeNode
-
-logger = logging.getLogger(__name__)
+from src.core.analysis.tree_analyzer import TreeNode
 
 @dataclass
 class DateHierarchy:

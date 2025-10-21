@@ -1,9 +1,5 @@
-import logging
 import sys
 from pathlib import Path
-
-paths_logger = logging.getLogger("Paths")
-paths_logger.setLevel(logging.WARNING)
 
 def resource_path(relative_path: str) -> str:
     try:
@@ -18,6 +14,7 @@ def resource_path(relative_path: str) -> str:
     if full_path.exists():
         pass
     else:
-        paths_logger.warning(f"Resource NOT found: {full_path}")
+        pass
 
     return str(full_path)
+

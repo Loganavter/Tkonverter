@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from core.conversion.context import ConversionContext
-from core.conversion.utils import pluralize_ru
-from resources.translations import tr
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.utils import pluralize_ru
+from src.resources.translations import tr
 
 def format_giveaway_start(giveaway_data: dict, context: ConversionContext) -> str:
     """Formats giveaway start message."""

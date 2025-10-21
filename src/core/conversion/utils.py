@@ -1,12 +1,9 @@
-import logging
 import re
 from datetime import datetime
 from html import escape
 from typing import TYPE_CHECKING, Optional
 
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.resources.translations import tr
 
 INVALID_FORWARD_SOURCES = {"/dev/null", "null"}
 

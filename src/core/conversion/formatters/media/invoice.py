@@ -1,5 +1,5 @@
-from core.conversion.context import ConversionContext
-from resources.translations import tr
+from src.core.conversion.context import ConversionContext
+from src.resources.translations import tr
 
 def format_invoice(invoice_data: dict, context: ConversionContext) -> str:
     title = invoice_data.get("title", tr("No title"))

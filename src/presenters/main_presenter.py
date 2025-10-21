@@ -1,24 +1,21 @@
-import logging
 from typing import Any, Dict, Optional, Set
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from core.analysis.tree_analyzer import TreeNode
-from core.application.analysis_service import AnalysisService
-from core.application.chat_service import ChatService
-from core.application.conversion_service import ConversionService
-from core.application.tokenizer_service import TokenizerService
-from core.dependency_injection import DIContainer
-from core.domain.models import AnalysisResult, Chat
-from presenters.action_presenter import ActionPresenter
-from presenters.analysis_presenter_extended import AnalysisPresenterExtended
-from presenters.app_state import AppState
-from presenters.config_presenter import ConfigPresenter
-from presenters.file_presenter import FilePresenter
-from presenters.preview_service import PreviewService
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.application.analysis_service import AnalysisService
+from src.core.application.chat_service import ChatService
+from src.core.application.conversion_service import ConversionService
+from src.core.application.tokenizer_service import TokenizerService
+from src.core.dependency_injection import DIContainer
+from src.core.domain.models import AnalysisResult, Chat
+from src.presenters.action_presenter import ActionPresenter
+from src.presenters.analysis_presenter_extended import AnalysisPresenterExtended
+from src.presenters.app_state import AppState
+from src.presenters.config_presenter import ConfigPresenter
+from src.presenters.file_presenter import FilePresenter
+from src.presenters.preview_service import PreviewService
+from src.resources.translations import tr
 
 class MainPresenter(QObject):
     """Main presenter implementing Clean Architecture with service layer as a coordinator."""
@@ -128,6 +125,10 @@ class MainPresenter(QObject):
 
         self.action_presenter.save_completed.connect(self.save_completed.emit)
         self.action_presenter.language_changed.connect(self.language_changed.emit)
+        self.action_presenter.tokenizer_changed.connect(lambda: self._update_analysis_unit())
+        self.action_presenter.tokenizer_changed.connect(self.tokenizer_changed.emit)
+
+        self.config_presenter.config_changed.connect(self.analysis_presenter.on_config_value_changed_for_update)
 
         self._theme_manager.theme_changed.connect(self._on_app_theme_changed)
 
@@ -168,7 +169,7 @@ class MainPresenter(QObject):
             self.tokenizer_changed.emit()
 
         except Exception as e:
-            logger.warning(f"Failed to load tokenizer {default_model}: {e}")
+
             pass
 
     def _update_analysis_unit(self):
@@ -214,6 +215,7 @@ class MainPresenter(QObject):
             try:
                 if dialog and dialog.isVisible():
                     dialog.setPalette(new_palette)
+
                     if hasattr(dialog, 'refresh_theme_styles'):
                         dialog.refresh_theme_styles()
                     else:
@@ -229,10 +231,6 @@ class MainPresenter(QObject):
     def get_longest_preview_html(self) -> str:
         """Generates HTML for the longest static example ('posts')."""
         return self._preview_service.get_longest_preview_html(self._app_state.ui_config)
-
-    def get_analysis_stats(self) -> Optional[Dict[str, int]]:
-        """Returns analysis statistics considering filtering."""
-        return self.analysis_presenter.get_analysis_stats()
 
     def get_current_chat(self) -> Optional[Chat]:
         """Returns the currently loaded chat."""
@@ -252,7 +250,7 @@ class MainPresenter(QObject):
 
     def get_disabled_nodes(self) -> Set[TreeNode]:
         """Returns a copy of disabled nodes."""
-        return self._app_state.disabled_time_nodes.copy()
+        return self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set()
 
     def has_chat_loaded(self) -> bool:
         """Checks if a chat is loaded."""
@@ -325,6 +323,5 @@ class MainPresenter(QObject):
             raw_text, title = self._preview_service.generate_preview_text(config)
             self.preview_updated.emit(raw_text, title)
         except Exception as e:
-            logger.error(f"Error generating preview: {e}")
             error_message = f"Error: {e}"
             self.preview_updated.emit(error_message, "Preview Error")

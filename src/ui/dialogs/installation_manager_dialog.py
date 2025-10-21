@@ -14,13 +14,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.settings import SettingsManager
-from resources.translations import tr
-from ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from ui.theme import ThemeManager
-from ui.widgets.atomic.custom_button import CustomButton
-from ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from ui.widgets.atomic.minimalist_scrollbar import MinimalistScrollBar
+from src.core.settings import SettingsManager
+from src.resources.translations import tr
+from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from src.shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
 
 class InstallationManagerDialog(QDialog):
     install_triggered = pyqtSignal()

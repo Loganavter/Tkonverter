@@ -504,12 +504,18 @@ en_translations = {
     "added_tasks": "added tasks",
 
     "Tkonverter Help": "Tkonverter Help",
-    "Help Section: Introduction": "Introduction",
-    "Help Section: File Management": "File Management",
-    "Help Section: Conversion Options": "Conversion Options",
-    "Help Section: Analysis Tools": "Analysis Tools",
-    "Help Section: AI Features": "AI Features",
-    "Help Section: Exporting": "Exporting",
+    "help_introduction": "Introduction",
+    "help_files": "File Management",
+    "help_conversion": "Conversion Options",
+    "help_analysis": "Analysis Tools",
+    "help_ai": "AI Features",
+    "help_export": "Exporting",
+    "Introduction": "Introduction",
+    "File Management": "File Management",
+    "Conversion Options": "Conversion Options",
+    "Analysis Tools": "Analysis Tools",
+    "AI Features": "AI Features",
+    "Exporting": "Exporting",
     "help_intro_html": """
 <body>
     <h2>Welcome to Tkonverter!</h2>
@@ -578,6 +584,8 @@ en_translations = {
     <p>The final <code>.txt</code> file will respect all your selected formatting options and any date filters you have applied using the Analysis Chart or Calendar.</p>
 </body>
 """,
+    "Switch On": "On",
+    "Switch Off": "Off",
 }
 
 ru_translations = {
@@ -1094,12 +1102,12 @@ ru_translations = {
     "added_tasks": "добавил(а) задачи",
 
     "Tkonverter Help": "Справка по Tkonverter",
-    "Help Section: Introduction": "Введение",
-    "Help Section: File Management": "Управление файлами",
-    "Help Section: Conversion Options": "Настройки конвертации",
-    "Help Section: Analysis Tools": "Инструменты анализа",
-    "Help Section: AI Features": "Функции ИИ",
-    "Help Section: Exporting": "Экспорт",
+    "help_introduction": "Введение",
+    "help_files": "Управление файлами",
+    "help_conversion": "Настройки конвертации",
+    "help_analysis": "Инструменты анализа",
+    "help_ai": "Функции ИИ",
+    "help_export": "Экспорт",
     "help_intro_html": """
 <body>
     <h2>Добро пожаловать в Tkonverter!</h2>
@@ -1168,11 +1176,33 @@ ru_translations = {
     <p>Итоговый файл <code>.txt</code> будет учитывать все выбранные вами опции форматирования и любые фильтры по датам, которые вы применили с помощью Диаграммы анализа или Календаря.</p>
 </body>
 """,
+    "Switch On": "Вкл",
+    "Switch Off": "Выкл",
 }
 
 translations = {
     "en": en_translations,
     "ru": ru_translations,
+    "zh": {
+        "help_introduction": "简介",
+        "help_files": "文件管理",
+        "help_conversion": "转换选项",
+        "help_analysis": "分析工具",
+        "help_ai": "AI功能",
+        "help_export": "导出",
+        "Switch On": "开",
+        "Switch Off": "关",
+    },
+    "pt_BR": {
+        "help_introduction": "Introdução",
+        "help_files": "Gerenciamento de Arquivos",
+        "help_conversion": "Opções de Conversão",
+        "help_analysis": "Ferramentas de Análise",
+        "help_ai": "Recursos de IA",
+        "help_export": "Exportação",
+        "Switch On": "Ligado",
+        "Switch Off": "Desligado",
+    },
 }
 
 def set_language(lang_code: str):
@@ -1182,8 +1212,12 @@ def set_language(lang_code: str):
 def get_language() -> str:
     return _current_language
 
-def tr(key: str, **kwargs) -> str:
-    lang_dict = translations.get(_current_language, en_translations)
+def tr(key: str, language=None, **kwargs) -> str:
+
+    if language is None:
+        language = _current_language
+
+    lang_dict = translations.get(language, en_translations)
     translated_text = lang_dict.get(key, key)
     if kwargs:
         try:

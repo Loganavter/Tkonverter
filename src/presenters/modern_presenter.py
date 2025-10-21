@@ -1,46 +1,30 @@
-import logging
 import re
 from typing import Any, Dict, Optional, Set
 
-from PyQt6.QtCore import QObject, QThreadPool, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QMessageBox
 
-from core.analysis.tree_analyzer import TreeNode
-from core.application.analysis_service import AnalysisService
-from core.application.chat_service import ChatService
-from core.application.conversion_service import ConversionService
-from core.application.tokenizer_service import TokenizerService
-from core.conversion.domain_adapters import chat_to_dict
-from core.dependency_injection import DIContainer
-from presenters.analysis_presenter import AnalysisPresenter
-from presenters.workers import (
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.analysis.tree_identity import TreeNodeIdentity
+from src.core.application.analysis_service import AnalysisService
+from src.core.application.chart_service import ChartService
+from src.core.application.chat_service import ChatService
+from src.core.application.conversion_service import ConversionService
+from src.core.application.tokenizer_service import TokenizerService
+from src.core.conversion.domain_adapters import chat_to_dict
+from src.core.dependency_injection import DIContainer
+from src.presenters.workers import (
     ChatLoadWorker, ConversionWorker, AnalysisWorker,
-    TreeBuildWorker, TokenizerLoadWorker, AIInstallerWorker
+    TreeBuildWorker, TokenizerLoadWorker, AIInstallerWorker,
+    sync_load_chat, sync_convert_chat, sync_analyze_chat,
+    sync_build_tree, sync_load_tokenizer
 )
-from presenters.task_manager import CancellableTaskManager
-from core.domain.models import AnalysisResult, Chat
-from presenters.app_state import AppState
-from resources.translations import set_language, tr
-from ui.dialogs.help_dialog import HelpDialog
 
-preview_logger = logging.getLogger("Preview")
-preview_logger.setLevel(logging.ERROR)
-
-logger = logging.getLogger("ModernPresenter")
-
-if not preview_logger.handlers:
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S'
-    )
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.ERROR)
-    console_handler.setFormatter(formatter)
-
-    preview_logger.addHandler(console_handler)
-
-logger = logging.getLogger(__name__)
+from src.core.domain.models import AnalysisResult, Chat
+from src.presenters.app_state import AppState
+from src.resources.translations import set_language, tr
+from src.shared_toolkit.utils.file_utils import get_unique_filepath
+from src.shared_toolkit.ui.dialogs.help_dialog import HelpDialog
 
 class ModernTkonverterPresenter(QObject):
     """Main presenter implementing Clean Architecture with service layer."""
@@ -88,6 +72,7 @@ class ModernTkonverterPresenter(QObject):
         self._conversion_service = self._di_container.get(ConversionService)
         self._analysis_service = self._di_container.get(AnalysisService)
         self._tokenizer_service = self._di_container.get(TokenizerService)
+        self._chart_service = ChartService()
 
         self._settings_dialog = None
         self._export_dialog = None
@@ -98,11 +83,6 @@ class ModernTkonverterPresenter(QObject):
 
         self._install_process = None
         self._installer_worker = None
-
-        self._threadpool = QThreadPool()
-        self._current_workers = []
-
-        self.analysis_task_manager = CancellableTaskManager(AnalysisWorker)
 
         self._connect_signals()
 
@@ -127,9 +107,6 @@ class ModernTkonverterPresenter(QObject):
         self._view.help_button_clicked.connect(self.on_help_clicked)
 
         self._theme_manager.theme_changed.connect(self._on_app_theme_changed)
-
-        self.analysis_task_manager.finished.connect(self._on_analysis_finished)
-        self.analysis_task_manager.progress.connect(self._view.show_status)
 
     def _try_load_default_tokenizer(self):
         """Attempts to load the default tokenizer ONLY from local cache."""
@@ -158,8 +135,50 @@ class ModernTkonverterPresenter(QObject):
             self.tokenizer_changed.emit()
 
         except Exception as e:
-            logger.warning(f"Failed to load tokenizer {default_model}: {e}")
+
             pass
+
+    def _check_and_update_analysis(self, key: str, value: Any):
+        """Синхронное обновление анализа при изменении настроек"""
+        if not self._app_state.has_analysis_data():
+            return
+
+        analysis_affecting_keys = [
+            "profile", "show_service_notifications", "show_markdown",
+            "show_links", "show_time", "show_reactions",
+            "show_reaction_authors", "show_tech_info",
+            "show_optimization", "streak_break_time",
+            "my_name", "partner_name"
+        ]
+
+        if key not in analysis_affecting_keys:
+            return
+
+        disabled_dates = self._app_state.disabled_dates.copy()
+
+        try:
+
+            result, tree = self._analysis_service.recalculate_with_filters(
+                self._app_state.loaded_chat,
+                self._app_state.ui_config,
+                self._app_state.tokenizer,
+                disabled_dates
+            )
+
+            self._app_state.set_analysis_result(result)
+            self._app_state.set_analysis_tree(tree)
+
+            if self._app_state.has_disabled_nodes():
+                restored_disabled_nodes = self._app_state.get_disabled_nodes_from_tree(tree)
+                self.disabled_nodes_changed.emit(restored_disabled_nodes)
+
+            self.analysis_completed.emit(tree)
+            self.analysis_count_updated.emit(result.total_count, result.unit)
+
+        except Exception as e:
+
+            import traceback
+            traceback.format_exc()
 
     def _update_analysis_unit(self):
         """Updates the analysis unit based on tokenizer availability."""
@@ -177,18 +196,16 @@ class ModernTkonverterPresenter(QObject):
     def _generate_preview(self):
         """Starts a preview generation using hardcoded data."""
         try:
-            from presenters.preview_service import PreviewService
+            from src.presenters.preview_service import PreviewService
             preview_service = PreviewService()
             config = self._app_state.ui_config
             raw_text, title = preview_service.generate_preview_text(config)
             self.preview_updated.emit(raw_text, title)
 
         except Exception as e:
-            preview_logger.error(f"=== PREVIEW GENERATION ERROR ===")
-            preview_logger.error(f"Error type: {type(e).__name__}")
-            preview_logger.error(f"Error message: {e}")
+
             import traceback
-            preview_logger.error(f"Traceback: {traceback.format_exc()}")
+            traceback.format_exc()
 
             error_message = f"Error: {e}"
             self.preview_updated.emit(error_message, "Preview Error")
@@ -200,34 +217,28 @@ class ModernTkonverterPresenter(QObject):
         Presenter generates raw_text, View formats it to HTML.
         """
         try:
-            from presenters.preview_service import PreviewService
+            from src.presenters.preview_service import PreviewService
             preview_service = PreviewService()
             config = self._app_state.ui_config.copy()
             return preview_service.get_longest_preview_html(config)
 
         except Exception as e:
-            preview_logger.error(f"=== LONGEST PREVIEW GENERATION ERROR ===")
-            preview_logger.error(f"Error type: {type(e).__name__}")
-            preview_logger.error(f"Error message: {e}")
+
             import traceback
-            preview_logger.error(f"Traceback: {traceback.format_exc()}")
+            traceback.format_exc()
             return ""
 
     def on_file_dropped(self, path: str):
         """Handles file drag-and-drop."""
 
         if self._app_state.is_processing:
-            logger.warning("Application is already processing a file, ignoring new one")
+
             return
 
         self.set_processing_state_in_view(True, message_key="Loading file...")
 
-        worker = ChatLoadWorker(self._chat_service, path)
-        worker.signals.progress.connect(self._view.show_status)
-        worker.signals.finished.connect(self._on_chat_load_finished)
-
-        self._current_workers.append(worker)
-        self._threadpool.start(worker)
+        success, message, result = sync_load_chat(self._chat_service, path)
+        self._on_chat_load_finished(success, message, result)
 
     def _on_chat_load_finished(
         self, success: bool, message: str, result: Optional[Chat]
@@ -241,15 +252,18 @@ class ModernTkonverterPresenter(QObject):
 
             if auto_detect_enabled:
                 detected_profile = self._chat_service.detect_chat_type(result)
-
                 current_profile = self._app_state.get_config_value("profile")
 
                 if detected_profile != current_profile:
-
                     self._app_state.set_config_value("profile", detected_profile)
                     self.profile_auto_detected.emit(detected_profile)
-            else:
-                pass
+
+                    if detected_profile == "personal":
+                        self._update_personal_chat_names(result)
+                else:
+
+                    if detected_profile == "personal":
+                        self._update_personal_chat_names(result)
 
             file_path = self._chat_service.get_current_file_path()
             self._app_state.set_chat(result, file_path)
@@ -267,8 +281,34 @@ class ModernTkonverterPresenter(QObject):
         else:
             self.chat_loaded.emit(False, message, "")
 
+    def _update_personal_chat_names(self, chat):
+        """Обновляет имена для личной переписки."""
+        chat_stats = self._chat_service.get_chat_statistics(chat)
+        if not chat_stats:
+            return
+
+        partner_name = chat_stats.get("most_active_user")
+        if partner_name and partner_name != tr("Partner"):
+            current_partner_name = self._app_state.get_config_value("partner_name")
+            if partner_name != current_partner_name:
+                self._app_state.set_config_value("partner_name", partner_name)
+
+                self.profile_auto_detected.emit("personal")
+
+        user_message_counts = chat_stats.get("user_message_counts", {})
+        if user_message_counts and len(user_message_counts) == 2:
+
+            most_active_user_name = max(user_message_counts, key=user_message_counts.get)
+            if most_active_user_name and most_active_user_name != tr("Me"):
+                current_my_name = self._app_state.get_config_value("my_name")
+                if most_active_user_name != current_my_name:
+                    self._app_state.set_config_value("my_name", most_active_user_name)
+
+                    self.profile_auto_detected.emit("personal")
+
     def on_config_changed(self, key: str, value: Any):
         """Handles configuration changes."""
+
         old_value = self._app_state.get_config_value(key)
 
         if old_value != value:
@@ -278,6 +318,8 @@ class ModernTkonverterPresenter(QObject):
             self._app_state.set_config_value(key, value)
 
             self.config_changed.emit(key, value)
+
+            self._check_and_update_analysis(key, value)
 
             if not self._app_state.has_analysis_data():
 
@@ -289,6 +331,7 @@ class ModernTkonverterPresenter(QObject):
                         self._view.show_status(message_key="Tokens reset", is_status=True)
                     else:
                         self._view.show_status(message_key="Characters reset", is_status=True)
+        else:
 
             if key not in ["disabled_nodes"]:
                 self._generate_preview()
@@ -312,8 +355,8 @@ class ModernTkonverterPresenter(QObject):
         chat_name = self._app_state.get_chat_name()
         sanitized_name = re.sub(r'[\\/*?:"<>|]', "_", chat_name)[:80]
 
-        from ui.dialogs.export_dialog import ExportDialog
-        from utils.file_utils import get_unique_filepath
+        from src.ui.dialogs.export_dialog import ExportDialog
+        from src.shared_toolkit.utils.file_utils import get_unique_filepath
 
         if self._export_dialog is not None:
             try:
@@ -338,7 +381,7 @@ class ModernTkonverterPresenter(QObject):
             self._export_dialog.destroyed.connect(self._on_dialog_destroyed)
             self._export_dialog.show()
         except Exception as e:
-            logger.error(f"Error opening export dialog: {e}")
+            pass
 
     def _handle_export_accepted(self):
         """Handles export confirmation."""
@@ -353,8 +396,6 @@ class ModernTkonverterPresenter(QObject):
         if use_default:
             self._settings_manager.settings.setValue("export_default_dir", output_dir)
 
-        from utils.file_utils import get_unique_filepath
-
         final_path = get_unique_filepath(output_dir, file_name, ".txt")
 
         self._export_dialog.close()
@@ -362,17 +403,14 @@ class ModernTkonverterPresenter(QObject):
 
         self.set_processing_state_in_view(True, message_key="Saving file...")
 
-        worker = ConversionWorker(
+        success, path_or_error = sync_convert_chat(
             self._conversion_service,
             self._app_state.loaded_chat,
             self._app_state.ui_config.copy(),
             final_path,
-            self._app_state.disabled_time_nodes,
+            self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set(),
         )
-        worker.signals.finished.connect(self._on_save_finished)
-
-        self._current_workers.append(worker)
-        self._threadpool.start(worker)
+        self._on_save_finished(success, path_or_error, None)
 
     def _on_save_finished(self, success: bool, path_or_error: str, result: Any):
         """Handles save completion."""
@@ -398,26 +436,25 @@ class ModernTkonverterPresenter(QObject):
 
         self.set_processing_state_in_view(True, message_key="Calculating...")
 
-        self.analysis_task_manager.submit(
-            analysis_service=self._analysis_service,
-            chat=self._app_state.loaded_chat,
-            config=self._app_state.ui_config.copy(),
-            tokenizer=self._app_state.tokenizer,
+        success, message, result = sync_analyze_chat(
+            self._analysis_service,
+            self._app_state.loaded_chat,
+            self._app_state.ui_config.copy(),
+            self._app_state.tokenizer,
+            self._app_state.disabled_dates,
         )
+        self._on_analysis_finished(success, message, result)
 
     def _on_analysis_finished(
         self, success: bool, message: str, result: Optional[AnalysisResult]
     ):
         """Handles analysis completion."""
-
-        if self.analysis_task_manager._pending_args is None:
-            self.set_processing_state_in_view(False)
+        self.set_processing_state_in_view(False)
 
         if success and result:
             self._app_state.set_analysis_result(result)
             self.analysis_count_updated.emit(result.total_count, result.unit)
         else:
-
             if message != "Cancelled":
                 self._view.show_status(
                     message_key="Analysis failed or no data found.",
@@ -447,15 +484,12 @@ class ModernTkonverterPresenter(QObject):
 
             self.set_processing_state_in_view(True, message_key="Building analysis tree...")
 
-            worker = TreeBuildWorker(
+            success, message, result = sync_build_tree(
                 self._analysis_service,
                 self._app_state.analysis_result,
                 self._app_state.ui_config.copy(),
             )
-            worker.signals.finished.connect(self._on_tree_build_finished)
-
-            self._current_workers.append(worker)
-            self._threadpool.start(worker)
+            self._on_tree_build_finished(success, message, result)
         else:
             self._show_analysis_dialog()
 
@@ -470,14 +504,32 @@ class ModernTkonverterPresenter(QObject):
 
         if self._help_dialog is None:
             try:
-                self._help_dialog = HelpDialog(parent=self._view)
+                sections = [
+                    ("help_introduction", "introduction"),
+                    ("help_files", "files"),
+                    ("help_conversion", "conversion"),
+                    ("help_analysis", "analysis"),
+                    ("help_ai", "ai"),
+                    ("help_export", "export"),
+                ]
+                self._help_dialog = HelpDialog(sections, self._settings_manager.load_language(), "Tkonverter", parent=self._view)
                 self._theme_manager.apply_theme_to_dialog(self._help_dialog)
-                self.language_changed.connect(self._help_dialog.retranslate_ui)
+                self.language_changed.connect(self._help_dialog.update_language)
                 self._help_dialog.destroyed.connect(self._on_dialog_destroyed)
-                self._help_dialog.show()
             except Exception as e:
-                logger.error(f"Error opening help dialog: {e}")
+
                 self._help_dialog = None
+
+        if getattr(self._help_dialog, 'current_language', None) != self._settings_manager.load_language():
+            try:
+                if hasattr(self._help_dialog, 'update_language'):
+                    self._help_dialog.update_language(self._settings_manager.load_language())
+                else:
+                    self._help_dialog.current_language = self._settings_manager.load_language()
+            except Exception:
+                pass
+
+        self._help_dialog.show()
 
     def _on_tree_build_finished(
         self, success: bool, message: str, result: Optional[TreeNode]
@@ -494,13 +546,14 @@ class ModernTkonverterPresenter(QObject):
 
     def _show_analysis_dialog(self):
         """Shows analysis dialog with bidirectional communication."""
-        from ui.dialogs.analysis.analysis_dialog import AnalysisDialog
+        from src.ui.dialogs.analysis.analysis_dialog import AnalysisDialog
 
         if self._analysis_dialog is not None:
             try:
 
+                self.analysis_completed.disconnect(self._analysis_dialog.update_chart_data)
                 self._analysis_dialog.accepted.disconnect(self._handle_analysis_accepted)
-                self.disabled_nodes_changed.disconnect(self._analysis_dialog.presenter.view.on_external_update)
+                self.disabled_nodes_changed.disconnect(self._analysis_dialog.on_external_update)
             except (TypeError, RuntimeError):
                 pass
             try:
@@ -511,42 +564,69 @@ class ModernTkonverterPresenter(QObject):
 
         try:
 
-            analysis_presenter = AnalysisPresenter()
-            self._analysis_dialog = analysis_presenter.get_view(parent=self._view)
+            self._analysis_dialog = AnalysisDialog(
+                presenter=self,
+                theme_manager=self._theme_manager,
+                parent=self._view,
+            )
 
             self._analysis_dialog.accepted.connect(self._handle_analysis_accepted)
+            self._analysis_dialog.filter_changed.connect(self._handle_filter_changed)
 
-            self.disabled_nodes_changed.connect(analysis_presenter.view.on_external_update)
+            self.disabled_nodes_changed.connect(self._analysis_dialog.on_external_update)
+
+            self.analysis_completed.connect(self._analysis_dialog.update_chart_data)
 
             def disconnect_analysis_signals(result_code=None):
                 try:
                     if self._analysis_dialog:
                         self.disabled_nodes_changed.disconnect(self._analysis_dialog.on_external_update)
                         self._analysis_dialog.accepted.disconnect(self._handle_analysis_accepted)
+                        self._analysis_dialog.filter_changed.disconnect(self._handle_filter_changed)
+                        self.analysis_completed.disconnect(self._analysis_dialog.update_chart_data)
                 except (TypeError, RuntimeError):
                     pass
 
             self._analysis_dialog.finished.connect(disconnect_analysis_signals)
 
             if self._app_state.analysis_tree:
-                analysis_presenter.load_analysis_data(
+
+                self._analysis_dialog.load_data_and_show(
                     root_node=self._app_state.analysis_tree,
-                    initial_disabled_nodes=self._app_state.disabled_time_nodes,
+                    initial_disabled_nodes=self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set(),
                     unit=self._app_state.last_analysis_unit
                 )
             self._analysis_dialog.show()
 
         except Exception as e:
-            logger.error(f"Error opening analysis dialog: {e}")
+            pass
+
+    def _handle_filter_changed(self, disabled_nodes: Set[TreeNode]):
+        """Обрабатывает изменение фильтров в диаграмме анализа."""
+
+        self._app_state.set_disabled_nodes(disabled_nodes)
+
+        self._app_state.disabled_dates.clear()
+
+        dates_added = 0
+        for node in disabled_nodes:
+            if hasattr(node, 'node_id') and node.node_id:
+                parsed = TreeNodeIdentity.parse_id(node.node_id)
+                if parsed and parsed.get('type') == 'day':
+                    year, month, day = parsed['year'], parsed['month'], parsed['day']
+                    self._app_state.disabled_dates.add((year, month, day))
+                    dates_added += 1
+
+        self.disabled_nodes_changed.emit(disabled_nodes)
+
+        self._view._update_analysis_display()
 
     def _handle_analysis_accepted(self):
         """Handles analysis dialog confirmation."""
         if self._analysis_dialog:
 
-            final_disabled_nodes = self._analysis_dialog.disabled_nodes
+            final_disabled_nodes = self._analysis_dialog._get_nodes_from_ids(self._analysis_dialog.disabled_node_ids)
             self.update_disabled_nodes(final_disabled_nodes)
-        else:
-            logger.warning("[ModernPresenter] _handle_analysis_accepted called, but _analysis_dialog is None")
 
     def on_calendar_clicked(self):
         """Handles calendar button click."""
@@ -570,15 +650,12 @@ class ModernTkonverterPresenter(QObject):
 
             self.set_processing_state_in_view(True, message_key="Building analysis tree...")
 
-            worker = TreeBuildWorker(
+            success, message, result = sync_build_tree(
                 self._analysis_service,
                 self._app_state.analysis_result,
                 self._app_state.ui_config.copy(),
             )
-            worker.signals.finished.connect(self._on_calendar_tree_build_finished)
-
-            self._current_workers.append(worker)
-            self._threadpool.start(worker)
+            self._on_calendar_tree_build_finished(success, message, result)
         else:
             self._show_calendar_dialog()
 
@@ -599,7 +676,7 @@ class ModernTkonverterPresenter(QObject):
 
     def _show_calendar_dialog(self):
         """Shows calendar dialog with bidirectional communication."""
-        from ui.dialogs.calendar import CalendarDialog
+        from src.ui.dialogs.calendar import CalendarDialog
 
         if self._calendar_dialog is not None:
             try:
@@ -618,12 +695,11 @@ class ModernTkonverterPresenter(QObject):
             messages_dict = chat_as_dict.get("messages", [])
 
             self._calendar_dialog = CalendarDialog(
-                presenter=self,
                 messages=messages_dict,
                 config=self._app_state.ui_config.copy(),
                 theme_manager=self._theme_manager,
                 root_node=self._app_state.analysis_tree,
-                initial_disabled_nodes=self._app_state.disabled_time_nodes,
+                initial_disabled_nodes=self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set(),
                 token_hierarchy=(
                     self._app_state.analysis_result.date_hierarchy
                     if self._app_state.analysis_result
@@ -651,12 +727,11 @@ class ModernTkonverterPresenter(QObject):
 
             self._calendar_dialog.show()
         except Exception as e:
-            logger.exception(f"Error opening calendar dialog: {e}")
             self._view.show_status(message_key="Error opening calendar dialog", is_error=True)
 
     def on_settings_clicked(self):
         """Handles settings button click."""
-        from ui.dialogs.settings_dialog import SettingsDialog
+        from src.ui.dialogs.settings_dialog import SettingsDialog
 
         if self._settings_dialog is not None:
             try:
@@ -723,7 +798,7 @@ class ModernTkonverterPresenter(QObject):
 
         if new_font_mode != current_font_mode or new_font_family != current_font_family:
             self._settings_manager.save_ui_font_settings(new_font_mode, new_font_family)
-            from ui.font_manager import FontManager
+            from src.shared_toolkit.ui.managers.font_manager import FontManager
             font_manager = FontManager.get_instance()
             font_manager.set_font(new_font_mode, new_font_family)
 
@@ -762,7 +837,7 @@ class ModernTkonverterPresenter(QObject):
 
     def on_install_manager_clicked(self):
         """Handles install manager button click."""
-        from ui.dialogs.installation_manager_dialog import InstallationManagerDialog
+        from src.ui.dialogs.installation_manager_dialog import InstallationManagerDialog
 
         if self._install_dialog is not None:
             try:
@@ -822,7 +897,8 @@ class ModernTkonverterPresenter(QObject):
             try:
                 self.language_changed.disconnect(self._analysis_dialog.retranslate_ui)
             except (TypeError, RuntimeError) as e:
-                logger.warning(f"[ModernPresenter] Error disconnecting language_changed for analysis_dialog: {e}")
+                pass
+
             self._analysis_dialog = None
 
         elif sender == self._calendar_dialog:
@@ -830,11 +906,12 @@ class ModernTkonverterPresenter(QObject):
                 self.language_changed.disconnect(self._calendar_dialog.retranslate_ui)
                 self._calendar_dialog.destroyed.disconnect(self._on_dialog_destroyed)
             except (TypeError, RuntimeError) as e:
-                logger.warning(f"[ModernPresenter] Error disconnecting signals for calendar_dialog: {e}")
+                pass
+
             self._calendar_dialog = None
         elif sender == self._help_dialog:
             try:
-                self.language_changed.disconnect(self._help_dialog.retranslate_ui)
+                self.language_changed.disconnect(self._help_dialog.update_language)
             except (TypeError, RuntimeError):
                 pass
             self._help_dialog = None
@@ -858,12 +935,16 @@ class ModernTkonverterPresenter(QObject):
             self._install_dialog.append_log(tr("Downloading tokenizer model '{model}'...").format(model=model_name))
             self._install_dialog.set_actions_enabled(False)
 
-        worker = TokenizerLoadWorker(self._tokenizer_service, model_name)
-        worker.signals.progress.connect(
-            lambda msg: self._install_dialog.append_log(f'<span class="info">{msg}</span>') if self._install_dialog else None
+        progress_callback = None
+        if self._install_dialog:
+            progress_callback = lambda msg: self._install_dialog.append_log(f'<span class="info">{msg}</span>')
+
+        success, message, tokenizer = sync_load_tokenizer(
+            self._tokenizer_service,
+            model_name,
+            progress_callback
         )
-        worker.signals.finished.connect(self._on_tokenizer_load_finished)
-        self._threadpool.start(worker)
+        self._on_tokenizer_load_finished(success, message, tokenizer)
 
     def _on_tokenizer_load_finished(self, success: bool, message: str, tokenizer: Optional[Any]):
         """Handles tokenizer loading completion."""
@@ -883,7 +964,7 @@ class ModernTkonverterPresenter(QObject):
                     is_installed, is_loaded, model_in_cache=True, loaded_model_name=model_name
                 )
         else:
-            logger.error(f"Failed to load tokenizer {model_name}: {message}")
+
             if self._install_dialog:
                 self._install_dialog.append_log(tr("Error loading tokenizer: {error}").format(error=message))
             self.tokenizer_load_failed.emit(message)
@@ -997,10 +1078,55 @@ class ModernTkonverterPresenter(QObject):
 
     def update_disabled_nodes(self, new_disabled_set: Set[TreeNode]):
         """Updates disabled nodes."""
-        old_disabled_set = self._app_state.disabled_time_nodes.copy()
+        old_disabled_set = self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set()
         if old_disabled_set != new_disabled_set:
             self._app_state.set_disabled_nodes(new_disabled_set)
             self.disabled_nodes_changed.emit(new_disabled_set)
+
+            if self._app_state.has_analysis_data():
+                filtered_count = self._calculate_filtered_count_from_tree()
+                self.analysis_count_updated.emit(filtered_count, self._app_state.last_analysis_unit)
+
+            self._view._update_analysis_display()
+
+    def _calculate_filtered_count_from_tree(self) -> int:
+        """Рассчитывает отфильтрованный счётчик на основе дерева и disabled_dates."""
+        if not self._app_state.analysis_tree:
+            return self._app_state.analysis_result.total_count if self._app_state.has_analysis_data() else 0
+
+        disabled_nodes = self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree)
+        filtered_value = self._chart_service.calculate_filtered_value(
+            self._app_state.analysis_tree,
+            disabled_nodes
+        )
+
+        return int(filtered_value)
+
+    def on_disabled_dates_changed(self):
+        """Вызывается при изменении disabled_dates из диаграммы."""
+        if not self._app_state.has_analysis_data():
+            return
+
+        try:
+            result, tree = self._analysis_service.recalculate_with_filters(
+                self._app_state.loaded_chat,
+                self._app_state.ui_config,
+                self._app_state.tokenizer,
+                self._app_state.disabled_dates
+            )
+
+            self._app_state.set_analysis_result(result)
+            self._app_state.set_analysis_tree(tree)
+
+            if self._app_state.has_disabled_nodes():
+                restored_disabled_nodes = self._app_state.get_disabled_nodes_from_tree(tree)
+                self.disabled_nodes_changed.emit(restored_disabled_nodes)
+
+            self.analysis_completed.emit(tree)
+            self.analysis_count_updated.emit(result.total_count, result.unit)
+
+        except Exception as e:
+            self._view.show_status(message_key="Error recalculating after date change", is_error=True)
 
     def _on_app_theme_changed(self):
         """
@@ -1011,12 +1137,13 @@ class ModernTkonverterPresenter(QObject):
         new_palette = self._app.palette()
 
         self._view.setPalette(new_palette)
-        self._view.refresh_theme_styles()
+
+        if hasattr(self._view, 'refresh_theme_styles'):
+            self._view.refresh_theme_styles()
 
         for dialog in [self._settings_dialog, self._export_dialog, self._analysis_dialog, self._install_dialog, self._calendar_dialog, self._help_dialog]:
             try:
                 if dialog and dialog.isVisible():
-
                     dialog.setPalette(new_palette)
 
                     if hasattr(dialog, 'refresh_theme_styles'):
@@ -1040,51 +1167,6 @@ class ModernTkonverterPresenter(QObject):
 
         self.language_changed.emit()
 
-    def get_analysis_stats(self) -> Optional[Dict[str, int]]:
-        """Returns analysis statistics considering filtering."""
-        if not self._app_state.analysis_result:
-            return None
-
-        total_count = self._app_state.analysis_result.total_count
-
-        if self._app_state.analysis_tree and self._app_state.disabled_time_nodes:
-            filtered_count = self._calculate_filtered_count()
-        else:
-            filtered_count = total_count
-
-        return {
-            "total_count": total_count,
-            "filtered_count": filtered_count,
-            "disabled_count": total_count - filtered_count,
-        }
-
-    def _calculate_filtered_count(self) -> int:
-        """Calculates the number of tokens/characters after filtering."""
-        if not self._app_state.analysis_tree:
-            return 0
-
-        return self._calculate_tree_value_excluding_disabled(
-            self._app_state.analysis_tree
-        )
-
-    def _calculate_tree_value_excluding_disabled(self, node) -> int:
-        """Recursively calculates the value of the tree, excluding disabled nodes."""
-        from core.analysis.tree_analyzer import TreeNode
-
-        if not isinstance(node, TreeNode):
-            return 0
-
-        if node in self._app_state.disabled_time_nodes:
-            return 0
-
-        if node.children:
-            total = 0
-            for child in node.children:
-                total += self._calculate_tree_value_excluding_disabled(child)
-            return total
-        else:
-            return node.value
-
     def get_current_chat(self) -> Optional[Chat]:
         """Returns the currently loaded chat."""
         return self._app_state.loaded_chat
@@ -1103,7 +1185,7 @@ class ModernTkonverterPresenter(QObject):
 
     def get_disabled_nodes(self) -> Set[TreeNode]:
         """Returns a copy of disabled nodes."""
-        return self._app_state.disabled_time_nodes.copy()
+        return self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set()
 
     def has_chat_loaded(self) -> bool:
         """Checks if a chat is loaded."""
@@ -1127,8 +1209,6 @@ class ModernTkonverterPresenter(QObject):
 
         if hasattr(self._view, 'set_processing_state'):
             self._view.set_processing_state(is_processing, None, message_key, format_args)
-        else:
-            logger.warning("View does not have set_processing_state method")
 
     def on_drop_zone_hover_state_changed(self, is_hovered: bool):
         if self._is_drop_zone_drag_active:
@@ -1145,7 +1225,7 @@ class ModernTkonverterPresenter(QObject):
         """Updates drop_zone style based on state."""
         if self._is_drop_zone_drag_active:
 
-            self.set_drop_zone_style_command.emit("border: 2px solid #0078d4; background-color: rgba(0, 120, 212, 0.1);")
+            self.set_drop_zone_style_command.emit("border: 2px solid #0078d4; background-color: rgba(0, 120, 212, 0.1); border-radius: 10px; padding: 15px; font-size: 14px;")
         else:
 
-            self.set_drop_zone_style_command.emit("border: 2px dashed #aaa;")
+            self.set_drop_zone_style_command.emit("border: 2px dashed #aaa; border-radius: 10px; padding: 15px; font-size: 14px;")

@@ -16,19 +16,19 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.analysis.tree_analyzer import TreeNode
-from core.application.calendar_service import CalendarService
-from core.conversion.context import ConversionContext
-from core.conversion.message_formatter import format_message
-from core.conversion.utils import markdown_to_html_for_preview
-from resources.translations import tr
-from ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from ui.dialogs.calendar.services.calendar_rendering_service import CalendarRenderingService
-from presenters.calendar_presenter import CalendarPresenter
-from core.view_models import CalendarViewModel
-from ui.theme import ThemeManager
-from ui.widgets.atomic.custom_button import CustomButton
-from ui.widgets.atomic.minimalist_scrollbar import MinimalistScrollBar
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.application.calendar_service import CalendarService
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.message_formatter import format_message
+from src.core.conversion.utils import markdown_to_html_for_preview
+from src.resources.translations import tr
+from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
+from src.ui.dialogs.calendar.calendar_rendering_service import CalendarRenderingService
+from src.presenters.calendar_presenter import CalendarPresenter
+from src.core.view_models import CalendarViewModel
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic import CustomButton
+from src.shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
 
 class NonPropagatingTextEdit(QTextEdit):
     """A QTextEdit that stops wheel events from propagating when at scroll limits."""
@@ -52,7 +52,6 @@ class CalendarDialog(QDialog):
 
     def __init__(
         self,
-        presenter,
         messages: list,
         config: dict,
         theme_manager: ThemeManager,

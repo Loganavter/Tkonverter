@@ -1,6 +1,5 @@
-import logging
-from core.conversion.context import ConversionContext
-from core.conversion.formatters.service.atomic import (
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.formatters.service.atomic import (
     format_channel_create,
     format_contact_signup,
     format_delete_photo,
@@ -19,7 +18,7 @@ from core.conversion.formatters.service.atomic import (
     format_star_gift,
     format_set_wallpaper,
 )
-from core.conversion.formatters.service.complex import (
+from src.core.conversion.formatters.service.complex import (
     format_add_user,
     format_boost,
     format_boost_apply,
@@ -31,16 +30,14 @@ from core.conversion.formatters.service.complex import (
     format_phone_call,
     format_pin_message,
 )
-from core.conversion.utils import (
+from src.core.conversion.utils import (
     format_duration,
     format_member_list,
     pluralize_ru,
     process_text_to_plain,
     truncate_name,
 )
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.resources.translations import tr
 
 SKIPPED_SERVICE_ACTIONS = set()
 

@@ -5,20 +5,17 @@ Manages communication between CalendarService and UI components,
 processes user interactions and maintains ViewModel state.
 """
 
-import logging
 from datetime import datetime
 from typing import List, Optional, Set, Dict, Any
 
 from PyQt6.QtCore import QDate, QObject, pyqtSignal
 
-logger = logging.getLogger(__name__)
-
-from core.analysis.tree_analyzer import TreeNode
-from core.application.calendar_service import CalendarService, DateHierarchy
-from core.conversion.context import ConversionContext
-from core.conversion.message_formatter import format_message
-from resources.translations import tr
-from core.view_models import CalendarDayInfo, CalendarMonthInfo, CalendarViewModel
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.application.calendar_service import CalendarService, DateHierarchy
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.message_formatter import format_message
+from src.resources.translations import tr
+from src.core.view_models import CalendarDayInfo, CalendarMonthInfo, CalendarViewModel
 
 class CalendarPresenter(QObject):
     """Presenter for calendar dialog."""

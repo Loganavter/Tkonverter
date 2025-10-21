@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from PyQt6.QtCore import QDate
 
-from core.analysis.tree_analyzer import TreeNode
+from src.core.analysis.tree_analyzer import TreeNode
 
 @dataclass
 class CalendarDayInfo:

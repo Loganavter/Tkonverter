@@ -5,10 +5,7 @@ Provides centralized service registration and resolution
 for dependency injection pattern implementation.
 """
 
-import logging
 from typing import Any, Callable, Dict, Type, TypeVar
-
-logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -59,10 +56,10 @@ def get_container() -> DIContainer:
 
 def setup_container() -> DIContainer:
     """Sets up DI container with basic services."""
-    from core.application.analysis_service import AnalysisService
-    from core.application.chat_service import ChatService
-    from core.application.conversion_service import ConversionService
-    from core.application.tokenizer_service import TokenizerService
+    from src.core.application.analysis_service import AnalysisService
+    from src.core.application.chat_service import ChatService
+    from src.core.application.conversion_service import ConversionService
+    from src.core.application.tokenizer_service import TokenizerService
 
     container = get_container()
 
