@@ -144,3 +144,81 @@ chmod +x launcher.sh
 ## ⭐ История звёзд
 
 ![Star History Chart](https://api.star-history.com/svg?repos=Loganavter/Tkonverter&type=Timeline)
+
+## Telegram-бот Tkonverter (монорепо)
+
+Функциональность (MVP):
+- Приём JSON-экспорта Telegram (Document)
+- Конвертация в текст/HTML через ядро (без GPU/токенизатора)
+- Базовая аналитика по символам с фильтрами по датам
+- Ограничения: вход до 20 МБ, выход до 6 МБ
+
+Структура и точка входа:
+- Каркас бота: каталог `bot/`
+  - Точка входа: `python -m bot.main`
+  - Основные файлы:
+    - `bot/main.py` — запуск long polling, регистрация команд
+    - `bot/handlers/convert.py` — загрузка JSON и команда `/convert`
+    - `bot/handlers/analyze.py` — команда `/analyze` (символьная аналитика)
+    - `bot/services/integration.py` — DI и интеграция с ядром
+    - `bot/services/state.py` — состояние пользователя и каталоги
+    - `bot/config.py` — ENV, лимиты, парсинг параметров
+    - `bot/requirements.txt` — зависимости бота (без GUI)
+
+Требования и переменные окружения:
+- Python 3.10+
+- TELEGRAM_BOT_TOKEN — токен вашего бота (обязательно)
+- MAX_UPLOAD_MB — лимит входного файла (по умолчанию 20)
+- MAX_OUTPUT_MB — лимит веса результата (по умолчанию 6)
+- TZ — часовой пояс (по умолчанию Europe/Moscow)
+- DEBUG — 1/true для подробных логов
+
+Установка зависимостей (только для бота):
+```
+pip install -r bot/requirements.txt
+```
+
+Локальный запуск:
+```
+export TELEGRAM_BOT_TOKEN="ваш_токен"
+export MAX_UPLOAD_MB=20
+export MAX_OUTPUT_MB=6
+python -m bot.main
+```
+
+Использование в чате:
+1) Отправьте JSON экспорт чата как документ (файл .json).
+2) Выполните
+   - `/convert html=1 from=2023-01-01 to=2023-12-31 exclude=2023-03-08,2023-05-09 profile=group`
+     - Параметры:
+       - `html=1|0` — HTML или Text
+       - `from=YYYY-MM-DD` — нижняя граница даты
+       - `to=YYYY-MM-DD` — верхняя граница даты
+       - `exclude=YYYY-MM-DD[,YYYY-MM-DD...]` — исключаемые даты
+       - `profile=group|personal|posts|channel`
+   - `/analyze from=2024-01-01 exclude=2024-03-08,2024-05-09`
+     - Возвращает сводку + JSON (если итог не превышает 6 МБ)
+
+Обработка ограничений:
+- Если входной файл > 20 МБ — отклоняется до скачивания
+- Если результат > 6 МБ — бот предложит сузить диапазон дат/исключить дни
+
+Деплой на Railway (long polling):
+1) Импортируйте репозиторий в Railway
+2) В настройках сервиса:
+   - Укажите команду запуска: `python -m bot.main`
+   - Добавьте ENV:
+     - `TELEGRAM_BOT_TOKEN`, `MAX_UPLOAD_MB=20`, `MAX_OUTPUT_MB=6`, `TZ=Europe/Moscow`, `DEBUG=0`
+   - Для корректной установки зависимостей из `bot/requirements.txt` в монорепо:
+     - Установите переменную сборки `NIXPACKS_PYTHON_ROOT=bot`
+3) Запустите сервис и проверьте логи
+
+Деплой на Fly.io (вариант):
+- Используйте Docker-образ Python (например, python:3.11-slim), установите `bot/requirements.txt`, запускайте `python -m bot.main`
+- Проброс портов и HTTP не требуется (long polling)
+
+Ограничения и примечания:
+- Бот не использует токенизатор/модели — анализ по символам
+- Поддерживается только JSON-экспорт (ZIP можно добавить позже)
+- Язык интерфейса: русский
+- Для больших чатов рекомендуется фильтровать по датам или месяцам

@@ -165,3 +165,46 @@ class SettingsManager:
         """Save UI font settings."""
         self.save_ui_font_mode(mode)
         self.save_ui_font_family(family)
+
+    def save_splitter_sizes(self, splitter_name: str, sizes: list):
+        """Save splitter sizes."""
+        self.settings.setValue(f"layout/{splitter_name}_sizes", sizes)
+        self.settings.sync()
+
+    def load_splitter_sizes(self, splitter_name: str, default_sizes: list) -> list:
+        """Load splitter sizes."""
+        return self.settings.value(f"layout/{splitter_name}_sizes", default_sizes, type=list)
+
+    def load_anonymization_settings(self) -> dict:
+        """Загружает настройки анонимизации."""
+        return {
+            "enabled": self.settings.value("anonymization/enabled", False, type=bool),
+            "hide_links": self.settings.value("anonymization/hide_links", False, type=bool),
+            "hide_names": self.settings.value("anonymization/hide_names", False, type=bool),
+            "name_mask_format": self.settings.value(
+                "anonymization/name_mask_format", "[ИМЯ {index}]", type=str
+            ),
+            "link_mask_mode": self.settings.value("anonymization/link_mask_mode", "simple"),
+            "link_mask_format": self.settings.value("anonymization/link_mask_format", "[ССЫЛКА {index}]"),
+            "active_preset": self.settings.value("anonymization/active_preset", None),
+            "custom_filters": self.settings.value("anonymization/custom_filters", [], type=list),
+
+            "custom_names": self.settings.value("anonymization/custom_names", [], type=list),
+        }
+
+    def save_anonymization_settings(self, config: dict):
+        """Сохраняет настройки анонимизации."""
+        self.settings.setValue("anonymization/enabled", config.get("enabled", False))
+        self.settings.setValue("anonymization/hide_links", config.get("hide_links", False))
+        self.settings.setValue("anonymization/hide_names", config.get("hide_names", False))
+        self.settings.setValue(
+            "anonymization/name_mask_format",
+            config.get("name_mask_format", "[ИМЯ {index}]"),
+        )
+        self.settings.setValue("anonymization/link_mask_mode", config.get("link_mask_mode", "simple"))
+        self.settings.setValue("anonymization/link_mask_format", config.get("link_mask_format", "[ССЫЛКА {index}]"))
+        self.settings.setValue("anonymization/active_preset", config.get("active_preset"))
+        self.settings.setValue("anonymization/custom_filters", config.get("custom_filters", []))
+
+        self.settings.setValue("anonymization/custom_names", config.get("custom_names", []))
+        self.settings.sync()

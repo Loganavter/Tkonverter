@@ -23,10 +23,10 @@ from src.presenters.workers import (
 from src.core.domain.models import AnalysisResult, Chat
 from src.presenters.app_state import AppState
 from src.resources.translations import set_language, tr
-from src.shared_toolkit.utils.file_utils import get_unique_filepath
-from src.shared_toolkit.ui.dialogs.help_dialog import HelpDialog
+from shared_toolkit.utils.file_utils import get_unique_filepath
+from shared_toolkit.ui.dialogs.help_dialog import HelpDialog
 
-class ModernTkonverterPresenter(QObject):
+class MainPresenter(QObject):
     """Main presenter implementing Clean Architecture with service layer."""
 
     chat_loaded = pyqtSignal(bool, str, str)
@@ -75,6 +75,7 @@ class ModernTkonverterPresenter(QObject):
         self._chart_service = ChartService()
 
         self._settings_dialog = None
+        self._anonymization_dialog = None
         self._export_dialog = None
         self._analysis_dialog = None
         self._install_dialog = None
@@ -97,7 +98,9 @@ class ModernTkonverterPresenter(QObject):
 
         self._view.config_changed.connect(self.on_config_changed)
         self._view.save_button_clicked.connect(self.on_save_clicked)
+        self._view.quick_save_button_clicked.connect(self.on_quick_save_clicked)
         self._view.settings_button_clicked.connect(self.on_settings_clicked)
+        self._view.anonymization_button_clicked.connect(self.on_anonymization_clicked)
         self._view.install_manager_button_clicked.connect(
             self.on_install_manager_clicked
         )
@@ -283,28 +286,15 @@ class ModernTkonverterPresenter(QObject):
 
     def _update_personal_chat_names(self, chat):
         """Обновляет имена для личной переписки."""
-        chat_stats = self._chat_service.get_chat_statistics(chat)
-        if not chat_stats:
-            return
 
-        partner_name = chat_stats.get("most_active_user")
-        if partner_name and partner_name != tr("Partner"):
-            current_partner_name = self._app_state.get_config_value("partner_name")
-            if partner_name != current_partner_name:
-                self._app_state.set_config_value("partner_name", partner_name)
+        chat_name = chat.name
 
-                self.profile_auto_detected.emit("personal")
+        current_partner_name = self._app_state.get_config_value("partner_name")
 
-        user_message_counts = chat_stats.get("user_message_counts", {})
-        if user_message_counts and len(user_message_counts) == 2:
+        if chat_name and chat_name != current_partner_name:
+            self._app_state.set_config_value("partner_name", chat_name)
 
-            most_active_user_name = max(user_message_counts, key=user_message_counts.get)
-            if most_active_user_name and most_active_user_name != tr("Me"):
-                current_my_name = self._app_state.get_config_value("my_name")
-                if most_active_user_name != current_my_name:
-                    self._app_state.set_config_value("my_name", most_active_user_name)
-
-                    self.profile_auto_detected.emit("personal")
+            self.profile_auto_detected.emit("personal")
 
     def on_config_changed(self, key: str, value: Any):
         """Handles configuration changes."""
@@ -356,7 +346,7 @@ class ModernTkonverterPresenter(QObject):
         sanitized_name = re.sub(r'[\\/*?:"<>|]', "_", chat_name)[:80]
 
         from src.ui.dialogs.export_dialog import ExportDialog
-        from src.shared_toolkit.utils.file_utils import get_unique_filepath
+        from shared_toolkit.utils.file_utils import get_unique_filepath
 
         if self._export_dialog is not None:
             try:
@@ -382,6 +372,39 @@ class ModernTkonverterPresenter(QObject):
             self._export_dialog.show()
         except Exception as e:
             pass
+
+    def on_quick_save_clicked(self):
+        """Handles quick save button click."""
+        if self._app_state.is_processing:
+            return
+
+        if not self._app_state.has_chat_loaded():
+            self._view.show_status(message_key="Please load a JSON file first.", is_error=True)
+            return
+
+        import os
+        default_dir = self._settings_manager.settings.value("export_default_dir", "", type=str)
+        if not default_dir:
+
+            default_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+
+        chat_name = self._app_state.get_chat_name()
+        sanitized_name = re.sub(r'[\\/*?:"<>|]', "_", chat_name)[:80]
+
+        final_path = get_unique_filepath(default_dir, sanitized_name, ".txt")
+
+        self.set_processing_state_in_view(True, message_key="Saving file...")
+
+        success, path_or_error = sync_convert_chat(
+            self._conversion_service,
+            self._app_state.loaded_chat,
+            self._app_state.ui_config.copy(),
+            final_path,
+            self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set(),
+        )
+
+        self.set_processing_state_in_view(False)
+        self.save_completed.emit(success, path_or_error)
 
     def _handle_export_accepted(self):
         """Handles export confirmation."""
@@ -456,8 +479,10 @@ class ModernTkonverterPresenter(QObject):
             self.analysis_count_updated.emit(result.total_count, result.unit)
         else:
             if message != "Cancelled":
+
+                error_message = f"Analysis error: {message}" if message else "Analysis failed or no data found."
                 self._view.show_status(
-                    message_key="Analysis failed or no data found.",
+                    message=error_message,
                     is_error=True
                 )
                 self.analysis_count_updated.emit(-1, "chars")
@@ -798,7 +823,7 @@ class ModernTkonverterPresenter(QObject):
 
         if new_font_mode != current_font_mode or new_font_family != current_font_family:
             self._settings_manager.save_ui_font_settings(new_font_mode, new_font_family)
-            from src.shared_toolkit.ui.managers.font_manager import FontManager
+            from shared_toolkit.ui.managers.font_manager import FontManager
             font_manager = FontManager.get_instance()
             font_manager.set_font(new_font_mode, new_font_family)
 
@@ -835,9 +860,65 @@ class ModernTkonverterPresenter(QObject):
         if config_updated:
             self._generate_preview()
 
+    def on_anonymization_clicked(self):
+        """Handles anonymization button click."""
+        from src.ui.dialogs.anonymization_settings_dialog import AnonymizationSettingsDialog
+
+        if self._anonymization_dialog is not None:
+            try:
+                if self._anonymization_dialog.isVisible():
+                    self._view.bring_dialog_to_front(self._anonymization_dialog, "anonymization")
+                    return
+                else:
+                    self._anonymization_dialog = None
+            except RuntimeError:
+                self._anonymization_dialog = None
+
+        if self._anonymization_dialog is None:
+            try:
+
+                anonymization_config = self._settings_manager.load_anonymization_settings()
+
+                known_names = []
+                if self._app_state.has_chat_loaded() and self._app_state.loaded_chat:
+                    users = self._app_state.loaded_chat.get_users()
+                    known_names = [u.name for u in users if u.name]
+
+                self._anonymization_dialog = AnonymizationSettingsDialog(
+                    current_config=anonymization_config,
+                    settings_manager=self._settings_manager,
+                    known_names=known_names,
+                    parent=self._view,
+                )
+
+                self._theme_manager.apply_theme_to_dialog(self._anonymization_dialog)
+
+                self.language_changed.connect(self._anonymization_dialog.retranslate_ui)
+                self._anonymization_dialog.accepted.connect(self._apply_anonymization_settings)
+                self._anonymization_dialog.destroyed.connect(lambda: setattr(self, '_anonymization_dialog', None))
+
+                self._anonymization_dialog.show()
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self._anonymization_dialog = None
+
+    def _apply_anonymization_settings(self):
+        """Applies anonymization settings from dialog."""
+        if not self._anonymization_dialog:
+            return
+
+        new_config = self._anonymization_dialog.get_config()
+        self._settings_manager.save_anonymization_settings(new_config)
+
+        self._app_state.set_config_value("anonymization", new_config)
+
+        self._generate_preview()
+
     def on_install_manager_clicked(self):
         """Handles install manager button click."""
-        from src.ui.dialogs.installation_manager_dialog import InstallationManagerDialog
+        from src.ui.dialogs.install_dialog import InstallDialog
 
         if self._install_dialog is not None:
             try:
@@ -861,7 +942,7 @@ class ModernTkonverterPresenter(QObject):
             cache_info = self._tokenizer_service.check_model_cache(current_model)
             model_in_cache = cache_info.get("available", False)
 
-        self._install_dialog = InstallationManagerDialog(
+        self._install_dialog = InstallDialog(
             is_installed=is_installed,
             is_loaded=is_loaded,
             loaded_model_name=loaded_model_name,
@@ -1181,7 +1262,12 @@ class ModernTkonverterPresenter(QObject):
 
     def get_config(self) -> Dict[str, Any]:
         """Returns a copy of the current configuration."""
-        return self._app_state.ui_config.copy()
+        config = self._app_state.ui_config.copy()
+
+        anonymization_settings = self._settings_manager.load_anonymization_settings()
+        if anonymization_settings:
+            config["anonymization"] = anonymization_settings
+        return config
 
     def get_disabled_nodes(self) -> Set[TreeNode]:
         """Returns a copy of disabled nodes."""

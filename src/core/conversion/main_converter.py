@@ -1,10 +1,18 @@
 from collections import Counter
 from datetime import datetime
 
+from src.core.application.anonymizer_service import AnonymizerService
 from src.core.conversion.context import ConversionContext
 from src.core.conversion.formatters.service_formatter import format_service_message
 from src.core.conversion.message_formatter import format_message
 from src.core.conversion.utils import format_date_separator
+from src.core.domain.anonymization import (
+    AnonymizationConfig,
+    FilterPreset,
+    LinkFilter,
+    LinkFilterType,
+    LinkMaskMode,
+)
 from src.resources.translations import tr
 
 def _filter_messages_by_disabled_nodes(
@@ -245,6 +253,53 @@ def _filter_messages_by_disabled_nodes(
 
     return filtered_messages
 
+def _create_anonymization_config(config_dict: dict) -> AnonymizationConfig:
+    """Создает AnonymizationConfig из словаря настроек."""
+    enabled = config_dict.get("enabled", False)
+    hide_links = config_dict.get("hide_links", False)
+    hide_names = config_dict.get("hide_names", False)
+    name_mask_format = config_dict.get("name_mask_format", "[ИМЯ {index}]")
+
+    raw_mode = config_dict.get("link_mask_mode", "simple")
+    try:
+        link_mask_mode = LinkMaskMode(raw_mode)
+    except ValueError:
+        link_mask_mode = LinkMaskMode.SIMPLE
+
+    link_mask_format = config_dict.get("link_mask_format", "[ССЫЛКА {index}]")
+
+    active_preset = None
+    preset_dict = config_dict.get("active_preset")
+    if preset_dict:
+        preset_filters = []
+        for f_dict in preset_dict.get("filters", []):
+            filter_type = LinkFilterType(f_dict.get("type", "domain"))
+            filter_value = f_dict.get("value", "")
+            filter_enabled = f_dict.get("enabled", True)
+            preset_filters.append(LinkFilter(type=filter_type, value=filter_value, enabled=filter_enabled))
+        active_preset = FilterPreset(name=preset_dict.get("name", ""), filters=preset_filters)
+
+    custom_filters = []
+    for f_dict in config_dict.get("custom_filters", []):
+        filter_type = LinkFilterType(f_dict.get("type", "domain"))
+        filter_value = f_dict.get("value", "")
+        filter_enabled = f_dict.get("enabled", True)
+        custom_filters.append(LinkFilter(type=filter_type, value=filter_value, enabled=filter_enabled))
+
+    custom_names = config_dict.get("custom_names", [])
+
+    return AnonymizationConfig(
+        enabled=enabled,
+        hide_links=hide_links,
+        hide_names=hide_names,
+        name_mask_format=name_mask_format,
+        link_mask_mode=link_mask_mode,
+        link_mask_format=link_mask_format,
+        active_preset=active_preset,
+        custom_filters=custom_filters,
+        custom_names=custom_names
+    )
+
 def _initialize_context(data: dict, config: dict) -> ConversionContext:
     chat_name = data.get("name", tr("Unknown Chat"))
     message_map = {msg["id"]: msg for msg in data.get("messages", []) if "id" in msg}
@@ -252,6 +307,48 @@ def _initialize_context(data: dict, config: dict) -> ConversionContext:
     context = ConversionContext(
         config=config, message_map=message_map, chat_name=chat_name
     )
+
+    anonymization_config_dict = config.get("anonymization", {})
+    if anonymization_config_dict:
+        anonymization_config = _create_anonymization_config(anonymization_config_dict)
+        if anonymization_config.enabled:
+
+            context.anonymizer = AnonymizerService(anonymization_config)
+
+            messages = data.get("messages", [])
+
+            for msg in messages:
+                if msg.get("type") == "message":
+                    uid = msg.get("from_id")
+                    name = msg.get("from")
+                    if uid:
+                        context.anonymizer.register_user(user_id=uid, name=name)
+
+            for msg in messages:
+                if "reactions" in msg:
+                    for reaction in msg["reactions"]:
+                        for recent in reaction.get("recent", []):
+                            uid = recent.get("from_id")
+                            name = recent.get("from")
+                            if uid or name:
+                                context.anonymizer.register_user(user_id=uid, name=name)
+
+            for msg in messages:
+                if msg.get("type") == "service":
+                    actor = msg.get("actor")
+                    actor_id = msg.get("actor_id")
+                    if actor:
+                        context.anonymizer.register_user(user_id=actor_id, name=actor)
+
+                    members = msg.get("members", [])
+                    for m in members:
+                        context.anonymizer.register_user(name=m)
+
+                fwd_name = msg.get("forwarded_from")
+                if fwd_name:
+                    context.anonymizer.register_user(name=fwd_name)
+
+            context.anonymizer._rebuild_names_regex()
 
     if config.get("profile") == "personal":
         authors = {}

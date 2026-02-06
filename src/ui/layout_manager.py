@@ -27,8 +27,8 @@ class LayoutManager:
 
     BUTTON_HEIGHT = 30
     ICON_BUTTON_SIZE = 33
-    PREVIEW_HEIGHT = 450
-    TERMINAL_MIN_HEIGHT = 200
+    PREVIEW_MIN_HEIGHT = 200
+    TERMINAL_MIN_HEIGHT = 150
     DROP_ZONE_MIN_HEIGHT = 80
 
     LEFT_COLUMN_MIN = 240
@@ -43,7 +43,7 @@ class LayoutManager:
         self._size_timer.setSingleShot(True)
         self._size_timer.timeout.connect(self._recalculate_window_size)
 
-        self._calculated_preview_height = self.PREVIEW_HEIGHT
+        self._calculated_preview_height = self.PREVIEW_MIN_HEIGHT
 
     def calculate_minimum_window_size(self) -> QSize:
         """Calculates minimum window size based on content."""
@@ -115,7 +115,7 @@ class LayoutManager:
                 tr("Show reactions"),
                 tr("Show reaction authors"),
                 tr("Optimization"),
-                tr("Streak break time:"),
+                tr("Streak break time"),
                 tr("Show Markdown"),
                 tr("Show links"),
                 tr("Show technical information"),
@@ -174,7 +174,7 @@ class LayoutManager:
                 + self.BUTTON_HEIGHT
                 + self.GROUP_PADDING
             )
-            right_height = self.PREVIEW_HEIGHT + self.TERMINAL_MIN_HEIGHT + self.BUTTON_HEIGHT
+            right_height = self.PREVIEW_MIN_HEIGHT + self.TERMINAL_MIN_HEIGHT + self.BUTTON_HEIGHT
 
             drop_zone_height = self.DROP_ZONE_MIN_HEIGHT
 
@@ -200,8 +200,7 @@ class LayoutManager:
                 label_width = font_metrics.horizontalAdvance(label)
                 content_width = max(content_width, label_width)
 
-            # Increased padding from +100 to +150 to accommodate switches and controls
-            group_width = max(title_width + 40, content_width + 150)  # Reduced from 180 to 150
+            group_width = max(title_width + 40, content_width + 150)
 
             return group_width
 
@@ -265,6 +264,45 @@ class LayoutManager:
     def cache_size(self, key: str, size: QSize):
         """Caches size."""
         self._cached_sizes[key] = size
+
+    def save_splitter_sizes(self):
+        """Saves current splitter sizes to settings."""
+        try:
+            ui = self.main_window.ui
+
+            main_sizes = ui.main_splitter.sizes()
+            self.main_window.settings_manager.save_splitter_sizes('main_splitter', main_sizes)
+
+            columns_sizes = ui.columns_splitter.sizes()
+            self.main_window.settings_manager.save_splitter_sizes('columns_splitter', columns_sizes)
+
+            right_sizes = ui.right_splitter.sizes()
+            self.main_window.settings_manager.save_splitter_sizes('right_splitter', right_sizes)
+
+        except Exception as e:
+            pass
+
+    def load_splitter_sizes(self):
+        """Loads saved splitter sizes from settings."""
+        try:
+            ui = self.main_window.ui
+
+            main_sizes = self.main_window.settings_manager.load_splitter_sizes('main_splitter', [450, 900])
+            ui.main_splitter.setSizes(main_sizes)
+
+            columns_sizes = self.main_window.settings_manager.load_splitter_sizes('columns_splitter', [240, 310])
+
+            left_min = int(self.calculate_left_column_width())
+            middle_min = int(self.calculate_middle_column_width())
+            columns_sizes[0] = max(columns_sizes[0], left_min)
+            columns_sizes[1] = max(columns_sizes[1], middle_min)
+            ui.columns_splitter.setSizes(columns_sizes)
+
+            right_sizes = self.main_window.settings_manager.load_splitter_sizes('right_splitter', [450, 200])
+            ui.right_splitter.setSizes(right_sizes)
+
+        except Exception as e:
+            pass
 
     def calculate_and_set_preview_height(self, html_content: str):
         """

@@ -1,7 +1,7 @@
 from PyQt6.QtCore import pyqtSignal, QTimer
 from PyQt6.QtWidgets import QWidget
 
-from src.ui.widgets.atomic.adaptive_label import AdaptiveLabel
+from shared_toolkit.ui.widgets.atomic.text_labels import AdaptiveLabel
 
 class DropZoneLabel(AdaptiveLabel):
     """A specialized label widget that handles Drag-and-Drop operations correctly."""

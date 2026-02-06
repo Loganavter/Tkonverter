@@ -6,11 +6,11 @@ from PyQt6.QtWidgets import (
 
 from src.resources.translations import tr
 from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from src.shared_toolkit.ui.widgets.atomic import FluentRadioButton
-from src.shared_toolkit.ui.widgets.atomic import FluentSpinBox
-from src.shared_toolkit.ui.widgets.atomic import FluentCheckBox
-from src.shared_toolkit.ui.widgets.atomic import FluentComboBox
-from src.shared_toolkit.ui.widgets.atomic import CustomGroupBuilder
+from shared_toolkit.ui.widgets.atomic import FluentRadioButton
+from shared_toolkit.ui.widgets.atomic import FluentSpinBox
+from shared_toolkit.ui.widgets.atomic import FluentCheckBox
+from shared_toolkit.ui.widgets.atomic import FluentComboBox
+from shared_toolkit.ui.widgets.atomic import CustomGroupBuilder
 
 class SettingsDialog(QDialog):
 

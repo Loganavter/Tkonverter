@@ -10,10 +10,11 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 from src.core.analysis.tree_analyzer import TokenAnalyzer, TreeNode
 from src.core.analysis.tree_identity import TreeNodeIdentity
+from src.core.application.anonymizer_service import AnonymizerService
 from src.core.conversion.context import ConversionContext
 from src.core.conversion.domain_adapters import chat_to_dict, service_message_to_dict
 from src.core.conversion.formatters.service_formatter import format_service_message
-from src.core.conversion.main_converter import generate_plain_text
+from src.core.conversion.main_converter import generate_plain_text, _create_anonymization_config
 from src.core.conversion.utils import process_text_to_plain
 from src.core.domain.models import AnalysisResult, Chat, Message, ServiceMessage
 
@@ -22,6 +23,21 @@ class AnalysisService:
 
     def __init__(self):
         pass
+
+    def _setup_context_with_anonymizer(self, config: Dict[str, Any]) -> ConversionContext:
+        """Helper to create context with correctly configured anonymizer."""
+        context = ConversionContext(config=config)
+
+        anonymization_config_dict = config.get("anonymization", {})
+        if anonymization_config_dict:
+            try:
+                anon_config = _create_anonymization_config(anonymization_config_dict)
+
+                if anon_config.enabled:
+                    context.anonymizer = AnonymizerService(anon_config)
+            except Exception:
+                pass
+        return context
 
     def calculate_character_stats(
         self,
@@ -40,7 +56,7 @@ class AnalysisService:
 
         disabled_dates = disabled_dates or set()
 
-        context = ConversionContext(config=config)
+        context = self._setup_context_with_anonymizer(config)
         date_hierarchy = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
         total_char_count = 0
         message_char_lengths = []
@@ -78,15 +94,12 @@ class AnalysisService:
             else 0
         )
 
-        most_active_user = self._find_most_active_user(chat)
-
         result = AnalysisResult(
             total_count=total_char_count,
             unit="Characters",
             date_hierarchy=dict(date_hierarchy),
             total_characters=total_char_count,
             average_message_length=avg_message_length,
-            most_active_user=most_active_user,
         )
 
         return result
@@ -183,12 +196,22 @@ class AnalysisService:
             AnalysisResult: Analysis result with date hierarchy
         """
 
-        if not chat.messages or not tokenizer:
+        if not chat.messages:
             return AnalysisResult(total_count=0, unit="tokens", date_hierarchy={})
+
+        if not tokenizer:
+            raise ValueError("Tokenizer is not loaded. Please load a tokenizer first.")
+
+        try:
+            test_tokens = tokenizer.encode("test")
+            if not isinstance(test_tokens, (list, tuple)):
+                raise ValueError("Tokenizer returned invalid result")
+        except Exception as e:
+            raise ValueError(f"Tokenizer is not working properly: {e}")
 
         disabled_dates = disabled_dates or set()
 
-        context = ConversionContext(config=config)
+        context = self._setup_context_with_anonymizer(config)
         total_tokens = 0
         total_char_count = 0
         message_char_lengths = []
@@ -271,11 +294,15 @@ class AnalysisService:
                 prev_msg_dict = msg_dict
 
             full_text = "\n".join(all_text_parts)
-            total_tokens = len(tokenizer.encode(full_text))
+            try:
+                tokens = tokenizer.encode(full_text)
+                total_tokens = len(tokens)
+            except Exception as tokenizer_error:
+                raise ValueError(f"Tokenization failed: {tokenizer_error}")
 
         except Exception as e:
 
-            return AnalysisResult(total_count=0, unit="tokens", date_hierarchy={})
+            raise ValueError(f"Analysis failed: {e}")
 
         if total_tokens <= 0:
             return AnalysisResult(total_count=0, unit="tokens", date_hierarchy={})
@@ -291,14 +318,11 @@ class AnalysisService:
             estimated_tokens = item["length"] * tokens_per_char
             date_hierarchy[year][month][day] += estimated_tokens
 
-        most_active_user = self._find_most_active_user(chat)
-
         result = AnalysisResult(
             total_count=total_tokens,
             unit="tokens",
             date_hierarchy=dict(date_hierarchy),
             total_characters=total_char_count,
-            most_active_user=most_active_user,
         )
 
         return result
@@ -336,35 +360,6 @@ class AnalysisService:
 
             return TreeNode(tr("Error"), 0)
 
-    def _find_most_active_user(self, chat: Chat) -> Optional[Any]:
-        """
-        Finds the most active user in the chat.
-
-        Args:
-            chat: Chat to analyze
-
-        Returns:
-            Optional[User]: The most active user or None
-        """
-        if not chat.messages:
-            return None
-
-        user_message_counts = {}
-
-        for msg in chat.messages:
-            if isinstance(msg, Message):
-                user_id = msg.author.id
-                if user_id in user_message_counts:
-                    user_message_counts[user_id]["count"] += 1
-                else:
-                    user_message_counts[user_id] = {"count": 1, "user": msg.author}
-
-        if not user_message_counts:
-            return None
-
-        most_active_data = max(user_message_counts.values(), key=lambda x: x["count"])
-        return most_active_data["user"]
-
     def get_chat_summary(self, chat: Chat) -> Dict[str, Any]:
         """
         Returns a brief chat summary.
@@ -382,7 +377,6 @@ class AnalysisService:
                 "service_messages": 0,
                 "unique_users": 0,
                 "date_range": None,
-                "most_active_user": None,
             }
 
         regular_messages = [msg for msg in chat.messages if isinstance(msg, Message)]
@@ -391,7 +385,6 @@ class AnalysisService:
         ]
 
         users = chat.get_users()
-        most_active_user = self._find_most_active_user(chat)
 
         try:
             start_date, end_date = chat.get_date_range()
@@ -409,7 +402,6 @@ class AnalysisService:
             "service_messages": len(service_messages),
             "unique_users": len(users),
             "date_range": date_range,
-            "most_active_user": most_active_user.name if most_active_user else None,
         }
 
     def calculate_user_activity(self, chat: Chat) -> Dict[str, Dict[str, Any]]:

@@ -2,31 +2,34 @@ import os
 import re
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QEvent
-from PyQt6.QtGui import QIcon, QMouseEvent
-from PyQt6.QtWidgets import QApplication, QDialog, QLabel, QMessageBox, QWidget
+from PyQt6.QtGui import QIcon, QMouseEvent, QKeyEvent
+from PyQt6.QtWidgets import QApplication, QDialog, QLabel, QMessageBox, QWidget, QLineEdit, QTextEdit, QPlainTextEdit
 
 from src.core.dependency_injection import setup_container
 from src.core.conversion.utils import markdown_to_html_for_preview
 from src.core.settings import SettingsManager
-from src.presenters.modern_presenter import ModernTkonverterPresenter
+from src.presenters.main_presenter import MainPresenter
 from src.resources.translations import set_language, tr
-from src.shared_toolkit.ui.managers.font_manager import FontManager
+from shared_toolkit.ui.managers.font_manager import FontManager
 from src.ui.layout_manager import LayoutManager
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
-from src.ui.tkonverter_main_window_ui import Ui_TkonverterMainWindow
-from src.shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
-from src.shared_toolkit.utils.paths import resource_path
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.ui.main_window_ui import Ui_MainWindow
+from shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
+from shared_toolkit.utils.paths import resource_path
 
 MAX_LOG_MESSAGES = 200
 
-class TkonverterMainWindow(QWidget):
+class MainWindow(QWidget):
     config_changed = pyqtSignal(str, object)
     save_button_clicked = pyqtSignal()
+    quick_save_button_clicked = pyqtSignal()
     settings_button_clicked = pyqtSignal()
+    anonymization_button_clicked = pyqtSignal()
     install_manager_button_clicked = pyqtSignal()
     recalculate_clicked = pyqtSignal()
     calendar_button_clicked = pyqtSignal()
     diagram_button_clicked = pyqtSignal()
+    statistics_button_clicked = pyqtSignal()
     help_button_clicked = pyqtSignal()
 
     def __init__(self, initial_theme: str, parent=None):
@@ -42,8 +45,6 @@ class TkonverterMainWindow(QWidget):
 
         if not ui_settings.get("my_name"):
             ui_settings["my_name"] = tr("Me")
-        if not ui_settings.get("partner_name"):
-            ui_settings["partner_name"] = tr("Partner")
 
         ui_settings.setdefault("profile", "group")
         ui_settings.setdefault("auto_detect_profile", True)
@@ -60,16 +61,16 @@ class TkonverterMainWindow(QWidget):
 
         self.font_manager.apply_from_settings(self.settings_manager)
 
-        self.ui = Ui_TkonverterMainWindow()
+        self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        log_scrollbar = MinimalistScrollBar(self.ui.log_output)
+        log_scrollbar = MinimalistScrollBar(Qt.Orientation.Vertical, self.ui.log_output)
         self.ui.log_output.setVerticalScrollBar(log_scrollbar)
         self.ui.log_output.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
 
-        preview_scrollbar = MinimalistScrollBar(self.ui.preview_text_edit)
+        preview_scrollbar = MinimalistScrollBar(Qt.Orientation.Vertical, self.ui.preview_text_edit)
         self.ui.preview_text_edit.setVerticalScrollBar(preview_scrollbar)
         self.ui.preview_text_edit.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
@@ -83,7 +84,7 @@ class TkonverterMainWindow(QWidget):
 
         di_container = setup_container()
 
-        self.presenter = ModernTkonverterPresenter(
+        self.presenter = MainPresenter(
             view=self,
             settings_manager=self.settings_manager,
             theme_manager=self.theme_manager,
@@ -103,16 +104,16 @@ class TkonverterMainWindow(QWidget):
         middle_min = int(self.layout_manager.calculate_middle_column_width())
         right_min = int(self.layout_manager.calculate_right_column_width())
 
+        self.layout_manager.load_splitter_sizes()
+
         self.ui.left_column.setMinimumWidth(left_min)
         self.ui.middle_column.setMinimumWidth(middle_min)
         self.ui.right_column.setMinimumWidth(right_min)
-        
-        # Set maximum widths to prevent columns from expanding too much
-        self.ui.left_column.setMaximumWidth(left_min + 100)  # Allow some expansion but not too much
-        self.ui.middle_column.setMaximumWidth(middle_min + 150)  # Middle column can expand more
-        self.ui.right_column.setMaximumWidth(right_min + 200)  # Right column can expand most
 
-        # Force layout update after setting column sizes
+        self.ui.left_column.setMaximumWidth(16777215)
+        self.ui.middle_column.setMaximumWidth(16777215)
+        self.ui.right_column.setMaximumWidth(16777215)
+
         self.updateGeometry()
         self.update()
 
@@ -194,6 +195,8 @@ class TkonverterMainWindow(QWidget):
 
     def closeEvent(self, event):
         self._save_state()
+
+        self.layout_manager.save_splitter_sizes()
         super().closeEvent(event)
 
     def _save_state(self):
@@ -303,8 +306,10 @@ class TkonverterMainWindow(QWidget):
 
         self.retranslate_dynamic_ui()
 
+        self._update_analysis_display()
+
         self._update_control_alignment()
-        self.layout_manager.handle_language_change()  # Add this line for proper recalculation
+        self.layout_manager.handle_language_change()
 
         self.updateGeometry()
         self.update()
@@ -358,20 +363,31 @@ class TkonverterMainWindow(QWidget):
         self.ui.switch_reaction_authors.checkedChanged.connect(
             self._handle_show_reaction_authors_change
         )
-        self.ui.line_edit_my_name.textChanged.connect(
+        self.ui.line_edit_my_name.editingFinished.connect(
             self._handle_my_name_change
         )
-        self.ui.line_edit_partner_name.textChanged.connect(
+        self.ui.line_edit_my_name.returnPressed.connect(
+            self._handle_my_name_change
+        )
+        self.ui.line_edit_partner_name.editingFinished.connect(
+            self._handle_partner_name_change
+        )
+        self.ui.line_edit_partner_name.returnPressed.connect(
             self._handle_partner_name_change
         )
         self.ui.switch_show_optimization.checkedChanged.connect(
             self._handle_optimization_switch_change
         )
-        self.ui.line_edit_streak_break_time.textChanged.connect(
+        self.ui.line_edit_streak_break_time.editingFinished.connect(
+            self._handle_streak_break_time_change
+        )
+        self.ui.line_edit_streak_break_time.returnPressed.connect(
             self._handle_streak_break_time_change
         )
         self.ui.save_button.clicked.connect(self.save_button_clicked)
+        self.ui.quick_save_button.clicked.connect(self._on_quick_save_clicked)
         self.ui.settings_button.clicked.connect(self.settings_button_clicked)
+        self.ui.anonymization_button.clicked.connect(self.anonymization_button_clicked)
         self.ui.install_manager_button.clicked.connect(
             self.install_manager_button_clicked
         )
@@ -389,6 +405,8 @@ class TkonverterMainWindow(QWidget):
 
         self.ui.calendar_button.clicked.connect(self.calendar_button_clicked)
         self.ui.diagram_button.clicked.connect(self.diagram_button_clicked)
+        if hasattr(self.ui, 'statistics_button'):
+            self.ui.statistics_button.clicked.connect(self.statistics_button_clicked)
         self.ui.help_button.clicked.connect(self.help_button_clicked)
 
     def _connect_presenter_signals(self):
@@ -405,11 +423,15 @@ class TkonverterMainWindow(QWidget):
 
         self.presenter.language_changed.connect(self._on_language_changed)
 
+        self.presenter.config_changed.connect(self.on_config_changed)
+
         self.ui.drop_zone.file_dropped.connect(self.presenter.on_file_dropped)
         self.ui.drop_zone.drop_zone_hover_state_changed.connect(self.presenter.on_drop_zone_hover_state_changed)
         self.ui.drop_zone.drop_zone_drag_active.connect(self.presenter.on_drop_zone_drag_active)
 
         self.presenter.set_drop_zone_style_command.connect(self.set_drop_zone_style)
+
+        self.statistics_button_clicked.connect(self.presenter.on_statistics_clicked)
 
     def on_chat_loaded(self, success: bool, message: str, chat_name: str):
         """Handles chat loading."""
@@ -547,6 +569,10 @@ class TkonverterMainWindow(QWidget):
         """Обновляет счётчики на основе AppState (без вызовов presenter)"""
         app_state = self.presenter.get_app_state()
 
+        unit = app_state.last_analysis_unit
+        label_key = "Tokens:" if unit == "tokens" else "Characters:"
+        self.ui.tokens_label.setText(tr(label_key))
+
         if not app_state.has_analysis_data():
             self.ui.token_count_label.setText(tr("N/A"))
             self.ui.filtered_token_count_label.hide()
@@ -554,10 +580,6 @@ class TkonverterMainWindow(QWidget):
 
         total = app_state.analysis_result.total_count
         filtered = app_state.get_filtered_count()
-        unit = app_state.last_analysis_unit
-
-        label_key = "Tokens:" if unit == "tokens" else "Characters:"
-        self.ui.tokens_label.setText(tr(label_key))
 
         has_filter = app_state.has_disabled_nodes() and filtered != total
 
@@ -583,16 +605,35 @@ class TkonverterMainWindow(QWidget):
         """Handles show reaction authors option change."""
         self.config_changed.emit("show_reaction_authors", is_checked)
 
-    def _handle_my_name_change(self, text: str):
+    def _handle_my_name_change(self):
         """Handles my name change."""
+        text = self.ui.line_edit_my_name.text()
         self.config_changed.emit("my_name", text)
 
-    def _handle_partner_name_change(self, text: str):
+    def _handle_partner_name_change(self):
         """Handles partner name change."""
+        text = self.ui.line_edit_partner_name.text()
         self.config_changed.emit("partner_name", text)
 
-    def _handle_streak_break_time_change(self, text: str):
+    def on_config_changed(self, key: str, value: Any):
+        """Принимает сигнал от презентера и обновляет конкретные виджеты."""
+        if key == "partner_name":
+            self.ui.line_edit_partner_name.setText(str(value))
+            self.ui.line_edit_partner_name.setCursorPosition(0)
+
+        elif key == "my_name":
+            self.ui.line_edit_my_name.setText(str(value))
+
+        elif key == "profile":
+            is_personal = (value == "personal")
+            self.ui.personal_names_group.setVisible(is_personal)
+            if is_personal:
+                current_partner = self.presenter._app_state.get_config_value("partner_name")
+                self.ui.line_edit_partner_name.setText(str(current_partner))
+
+    def _handle_streak_break_time_change(self):
         """Handles streak break time change."""
+        text = self.ui.line_edit_streak_break_time.text()
         self.config_changed.emit("streak_break_time", text)
 
     def _handle_show_links_change(self, is_checked: bool):
@@ -691,7 +732,7 @@ class TkonverterMainWindow(QWidget):
     def _invalidate_adaptive_widgets_cache(self):
         """Resets sizes of all adaptive widgets."""
         try:
-            from src.ui.widgets.atomic.adaptive_label import AdaptiveLabel, CompactLabel
+            from shared_toolkit.ui.widgets.atomic.text_labels import AdaptiveLabel, CompactLabel
 
             for widget in self.findChildren(AdaptiveLabel):
                 if hasattr(widget, "invalidate_size_cache"):
@@ -759,6 +800,16 @@ class TkonverterMainWindow(QWidget):
         self.theme_manager.apply_theme_to_dialog(msg_box)
         msg_box.exec()
 
+    def refresh_theme_styles(self):
+        """Forces main window styles to update."""
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+        self.updateGeometry()
+
+        if hasattr(self.ui, 'refresh_icons_for_current_theme'):
+            self.ui.refresh_icons_for_current_theme()
+
     def bring_dialog_to_front(self, dialog: QDialog, dialog_name: str):
         """Reliably brings dialog to the front (delegating to Presenter)."""
         from PyQt6.QtCore import QTimer
@@ -782,6 +833,16 @@ class TkonverterMainWindow(QWidget):
         """Forcibly sets focus on dialog."""
         try:
             if dialog and not dialog.isActiveWindow():
+
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(10, lambda: self._delayed_dialog_focus(dialog))
+        except Exception as e:
+            pass
+
+    def _delayed_dialog_focus(self, dialog: QDialog):
+        """Delayed dialog focus setting for Wayland compatibility."""
+        try:
+            if dialog and not dialog.isActiveWindow():
                 dialog.setFocus()
                 dialog.repaint()
 
@@ -789,7 +850,6 @@ class TkonverterMainWindow(QWidget):
                     dialog.show()
                     dialog.raise_()
                     dialog.activateWindow()
-
         except Exception as e:
             pass
 
@@ -833,3 +893,29 @@ class TkonverterMainWindow(QWidget):
 
         if is_my_name or is_partner_name or is_streak_time:
             focused_widget.clearFocus()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """Handles keyboard shortcuts."""
+
+        focused_widget = self.focusWidget()
+        if focused_widget and isinstance(focused_widget, (QLineEdit, QTextEdit, QPlainTextEdit)):
+
+            super().keyPressEvent(event)
+            return
+
+        if event.key() == Qt.Key.Key_S and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if not event.isAutoRepeat():
+                self.quick_save_button_clicked.emit()
+            event.accept()
+            return
+        elif event.key() == Qt.Key.Key_S and event.modifiers() == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier):
+            if not event.isAutoRepeat():
+                self.save_button_clicked.emit()
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
+
+    def _on_quick_save_clicked(self):
+        """Handles quick save button click."""
+        self.quick_save_button_clicked.emit()

@@ -11,17 +11,31 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
 )
 import os
+
+import logging
+logging.getLogger('markdown').setLevel(logging.WARNING)
+logging.getLogger('markdown.extensions').setLevel(logging.WARNING)
+logging.getLogger('markdown.extensions.md_in_html').setLevel(logging.WARNING)
+logging.getLogger('markdown.extensions.extra').setLevel(logging.WARNING)
+logging.getLogger('markdown.extensions.sane_lists').setLevel(logging.WARNING)
+logging.getLogger('markdown.extensions.smarty').setLevel(logging.WARNING)
+logging.getLogger('markdown.extensions.nl2br').setLevel(logging.WARNING)
+
 from markdown import markdown
 
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
-from src.shared_toolkit.ui.widgets.atomic.minimalist_scrollbar import (
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from shared_toolkit.ui.widgets.atomic.minimalist_scrollbar import (
     MinimalistScrollBar,
 )
-from src.shared_toolkit.utils.paths import resource_path
-from src.resources.translations import tr
+from shared_toolkit.utils.paths import resource_path
+try:
+    from resources.translations import tr
+except ImportError:
+
+    def tr(key, language=None):
+        return key
 
 class CurrentPageStackedWidget(QStackedWidget):
-    """QStackedWidget, который возвращает размер текущей страницы вместо максимального"""
 
     def sizeHint(self):
         current_widget = self.currentWidget()
@@ -47,7 +61,7 @@ class HelpDialog(QDialog):
         self._md_cache: dict[str, dict[str, str]] = {}
         self._title_keys: list[str] = []
 
-        self.setWindowTitle(tr("Tkonverter Help", language=self.current_language))
+        self.setWindowTitle(tr("help.help", language=self.current_language))
 
         self.setWindowFlags(
             Qt.WindowType.Window | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint
@@ -107,13 +121,12 @@ class HelpDialog(QDialog):
                         text = tr(title_key, language=lang)
                         text_width = QFontMetrics(self.nav_widget.font()).horizontalAdvance(text)
                         max_width_for_item = max(max_width_for_item, text_width)
-                    except:
-
+                    except Exception:
                         try:
                             text = tr(title_key, language="en")
                             text_width = QFontMetrics(self.nav_widget.font()).horizontalAdvance(text)
                             max_width_for_item = max(max_width_for_item, text_width)
-                        except:
+                        except Exception:
                             text_width = QFontMetrics(self.nav_widget.font()).horizontalAdvance(title_key)
                             max_width_for_item = max(max_width_for_item, text_width)
                 max_text_width = max(max_text_width, max_width_for_item)
@@ -145,10 +158,9 @@ class HelpDialog(QDialog):
         self._update_nav_width()
 
     def _add_section(self, title_key: str, section_id: str):
-
         try:
             title = tr(title_key, language=self.current_language)
-        except:
+        except Exception:
             title = title_key
 
         nav_item = QListWidgetItem(title, self.nav_widget)
@@ -169,14 +181,8 @@ class HelpDialog(QDialog):
         self._pages.append(content_page)
 
     def _normalize_markdown_lists(self, md_text: str) -> str:
-        """
-        Ensure a blank line before Markdown lists so python-markdown parses
-        '- ' / '* ' / '+ ' and '1.' list markers correctly.
-        This helps when authors forget to put an empty line before lists.
-        """
         lines = md_text.splitlines()
         out: list[str] = []
-        prev = ""
         for i, line in enumerate(lines):
             stripped = line.lstrip()
             is_list_item = (
@@ -201,12 +207,6 @@ class HelpDialog(QDialog):
         return "\n".join(out)
 
     def _fallback_plainlist_to_html(self, md_text: str) -> str:
-        """
-        Запасной конвертер: превращает последовательности строк, начинающихся
-        с '- ' / '* ' / '+ ' или 'N. ' в HTML-списки, если Markdown не распознал их
-        (например, из-за отсутствующей пустой строки перед списком).
-        Остальные непустые строки превращаются в абзацы &lt;p&gt;.
-        """
         def is_bullet(s: str) -> bool:
             s = s.lstrip()
             if s.startswith("- ") or s.startswith("* ") or s.startswith("+ "):
@@ -265,12 +265,6 @@ class HelpDialog(QDialog):
         return "\n".join(html_parts)
 
     def load_section_md(self, language: str, section_id: str) -> str:
-        """
-        Load section content from Markdown files with fallback to English and legacy translations.
-        - Path pattern: resources/help/{lang}/{section_id}.md
-        - Language normalization: en, ru, zh, pt_BR (pt → pt_BR; zh-* → zh)
-        - Legacy fallback: maps section_id to old help_*_html keys in translations.py
-        """
 
         try:
             lang_norm = str(language) if language is not None else "en"
@@ -341,7 +335,7 @@ class HelpDialog(QDialog):
                 if legacy_key:
                     try:
                         html_content = tr(legacy_key, language=language)
-                    except:
+                    except Exception:
                         html_content = ""
                 else:
                     html_content = ""
@@ -471,7 +465,7 @@ class HelpDialog(QDialog):
 
     def update_language(self, new_language: str):
         self.current_language = new_language
-        self.setWindowTitle(tr("Tkonverter Help", language=self.current_language))
+        self.setWindowTitle(tr("help.help", language=self.current_language))
 
         if self.current_language in self._md_cache:
             del self._md_cache[self.current_language]
@@ -490,7 +484,3 @@ class HelpDialog(QDialog):
         self._populate_content(sections)
         self._apply_styles()
 
-    def retranslate_ui(self):
-        """Empty method for compatibility with Improve-ImgSLI's dialog system."""
-
-        pass

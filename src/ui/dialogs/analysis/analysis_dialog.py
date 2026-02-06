@@ -26,7 +26,7 @@ from src.core.application.chart_service import ChartService
 from src.core.view_models import SunburstSegment
 from src.resources.translations import tr
 from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
 from src.ui.widgets.atomic.loading_spinner import LoadingSpinner
 
 logger = logging.getLogger(__name__)

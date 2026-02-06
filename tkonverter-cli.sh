@@ -45,7 +45,6 @@ if [[ "$1" == "--version" || "$1" == "-v" ]]; then
     exit 0
 fi
 
-# Run CLI command
 if ensure_venv_is_ready "$VENV_DIR" "$REQUIREMENTS"; then
     log_info "Starting Tkonverter CLI..."
     export PYTHONPATH="$SCRIPT_DIR/src:$PYTHONPATH"

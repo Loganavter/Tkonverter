@@ -26,9 +26,9 @@ from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffol
 from src.ui.dialogs.calendar.calendar_rendering_service import CalendarRenderingService
 from src.presenters.calendar_presenter import CalendarPresenter
 from src.core.view_models import CalendarViewModel
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
-from src.shared_toolkit.ui.widgets.atomic import CustomButton
-from src.shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from shared_toolkit.ui.widgets.atomic import CustomButton
+from shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
 
 class NonPropagatingTextEdit(QTextEdit):
     """A QTextEdit that stops wheel events from propagating when at scroll limits."""
@@ -145,7 +145,7 @@ class CalendarDialog(QDialog):
         self.text_view.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.text_view.viewport().setCursor(Qt.CursorShape.ArrowCursor)
 
-        self.text_view.setVerticalScrollBar(MinimalistScrollBar(self.text_view))
+        self.text_view.setVerticalScrollBar(MinimalistScrollBar(Qt.Orientation.Vertical, self.text_view))
 
         right_panel_layout.addWidget(self.date_label)
         right_panel_layout.addWidget(self.text_view, 1)

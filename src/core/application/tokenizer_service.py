@@ -240,42 +240,17 @@ class TokenizerService:
 
         try:
 
-            from huggingface_hub import scan_cache_dir
+            from transformers import AutoTokenizer
 
-            try:
-                hf_cache_info = scan_cache_dir()
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_name, local_files_only=True
+            )
 
-                repo_info = next(
-                    (
-                        repo
-                        for repo in hf_cache_info.repos
-                        if repo.repo_id == model_name
-                    ),
-                    None,
-                )
-
-                if repo_info:
-                    return {
-                        "available": True,
-                        "model_name": model_name,
-                        "cache_size": len(repo_info.revisions),
-                    }
-                else:
-                    return {"available": False, "reason": "not in cache"}
-
-            except Exception:
-
-                from transformers import AutoTokenizer
-
-                tokenizer = AutoTokenizer.from_pretrained(
-                    model_name, local_files_only=True
-                )
-
-                return {
-                    "available": True,
-                    "model_name": model_name,
-                    "vocab_size": getattr(tokenizer, "vocab_size", None),
-                }
+            return {
+                "available": True,
+                "model_name": model_name,
+                "vocab_size": getattr(tokenizer, "vocab_size", None),
+            }
 
         except OSError:
             return {"available": False, "reason": "not in cache"}

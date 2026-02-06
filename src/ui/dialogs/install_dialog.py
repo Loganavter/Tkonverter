@@ -17,12 +17,12 @@ from PyQt6.QtWidgets import (
 from src.core.settings import SettingsManager
 from src.resources.translations import tr
 from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
-from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
-from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from src.shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
 
-class InstallationManagerDialog(QDialog):
+class InstallDialog(QDialog):
     install_triggered = pyqtSignal()
     remove_model_triggered = pyqtSignal()
     load_model_triggered = pyqtSignal(str)
@@ -140,7 +140,7 @@ class InstallationManagerDialog(QDialog):
         self.log_output.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.log_output.viewport().setCursor(Qt.CursorShape.ArrowCursor)
 
-        log_scrollbar = MinimalistScrollBar(self.log_output)
+        log_scrollbar = MinimalistScrollBar(Qt.Orientation.Vertical, self.log_output)
         self.log_output.setVerticalScrollBar(log_scrollbar)
         self.log_output.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
@@ -357,7 +357,7 @@ class InstallationManagerDialog(QDialog):
             return
 
         try:
-            from core.application.tokenizer_service import TokenizerService
+            from src.core.application.tokenizer_service import TokenizerService
 
             tokenizer_service = TokenizerService()
 

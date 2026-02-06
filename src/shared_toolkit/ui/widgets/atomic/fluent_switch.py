@@ -12,7 +12,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from ...managers.theme_manager import ThemeManager
 
 class FluentSwitch(QWidget):
     checkedChanged = pyqtSignal(bool)
@@ -101,24 +101,13 @@ class FluentSwitch(QWidget):
             self.update()
 
     def _initialize_translations(self):
-        """Инициализирует переводы при создании виджета."""
-        try:
-            from src.resources.translations import tr
-            self._on_text = tr("Switch On")
-            self._off_text = tr("Switch Off")
-        except ImportError:
-
-            self._on_text = "On"
-            self._off_text = "Off"
+        from resources.translations import tr
+        self._on_text = tr("common.switch.switch_on")
+        self._off_text = tr("common.switch.switch_off")
 
     def update_translations(self):
-        """Обновляет переводы для текста свитчера."""
-        try:
-            from src.resources.translations import tr
-            self.set_state_texts(tr("Switch On"), tr("Switch Off"))
-        except ImportError:
-
-            self.set_state_texts("On", "Off")
+        from resources.translations import tr
+        self.set_state_texts(tr("common.switch.switch_on"), tr("common.switch.switch_off"))
 
     def sizeHint(self) -> QSize:
         base_w = self.TRACK_WIDTH
@@ -126,8 +115,6 @@ class FluentSwitch(QWidget):
         if self._show_text:
             fm = QFontMetrics(self.font())
             text_w = max(fm.horizontalAdvance(self._on_text), fm.horizontalAdvance(self._off_text))
-            # Add extra padding for better text display
-            text_w += 8  # 4px padding on each side
             base_w += self.TEXT_SPACING + text_w
 
             base_h = max(base_h, fm.height())
@@ -147,11 +134,13 @@ class FluentSwitch(QWidget):
             super().mouseReleaseEvent(e)
 
     def enterEvent(self, e):
-        if not self._checked and self.underMouse():
+
+        if not self._checked:
             self._animate_hover(True)
         super().enterEvent(e)
 
     def leaveEvent(self, e):
+
         if not self._checked:
             self._animate_hover(False)
         super().leaveEvent(e)
@@ -243,10 +232,8 @@ class FluentSwitch(QWidget):
             self._animate_hover(True)
 
     def _animate_hover(self, on: bool):
-
-        if on and not self.underMouse():
-            return
         self._hover_anim.stop()
         self._hover_anim.setStartValue(self._hover)
         self._hover_anim.setEndValue(1.0 if on else 0.0)
         self._hover_anim.start()
+

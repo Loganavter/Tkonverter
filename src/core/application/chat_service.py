@@ -108,21 +108,6 @@ class ChatService:
             user_messages = target_chat.get_messages_by_user(user.id)
             user_message_counts[user.name] = len(user_messages)
 
-        most_active_user = None
-        if user_message_counts:
-
-            if target_chat.type == "personal":
-
-                most_active_user = User(id="partner", name=target_chat.name)
-            else:
-
-                most_active_user_name = max(
-                    user_message_counts, key=user_message_counts.get
-                )
-                most_active_user = next(
-                    (u for u in users if u.name == most_active_user_name), None
-                )
-
         try:
             start_date, end_date = target_chat.get_date_range()
         except ValueError:
@@ -136,7 +121,6 @@ class ChatService:
             "service_messages": target_chat.service_message_count,
             "unique_users": len(users),
             "user_message_counts": user_message_counts,
-            "most_active_user": most_active_user.name if most_active_user else None,
             "date_range": {
                 "start": start_date.isoformat() if start_date else None,
                 "end": end_date.isoformat() if end_date else None,
@@ -194,7 +178,7 @@ class ChatService:
             result["is_valid"] = True
         except Exception as e:
             result["issues"].append(f"Data analysis error: {e}")
-        
+
         return result
 
     def detect_chat_type(self, chat: Optional[Chat] = None) -> str:
@@ -213,30 +197,30 @@ class ChatService:
 
         detected_type = target_chat.type
         return detected_type
-    
+
     def get_user_activity_stats(self, chat: Optional[Chat] = None) -> Dict[str, Dict[str, Any]]:
         """
         Returns user activity statistics.
-        
+
         Args:
             chat: Chat to analyze. If None, current chat is used.
-            
+
         Returns:
             Dict[str, Dict[str, Any]]: Statistics by users
         """
         target_chat = chat or self._current_chat
         if not target_chat:
             return {}
-        
+
         user_stats = {}
-        
+
         for msg in target_chat.messages:
             if not isinstance(msg, Message):
                 continue
-            
+
             user_id = msg.author.id
             user_name = msg.author.name
-            
+
             if user_id not in user_stats:
                 user_stats[user_id] = {
                     "name": user_name,
@@ -246,42 +230,42 @@ class ChatService:
                     "first_message": None,
                     "last_message": None,
                 }
-            
+
             stats = user_stats[user_id]
             stats["message_count"] += 1
-            
+
             if isinstance(msg.text, str):
                 stats["character_count"] += len(msg.text)
-            
+
             stats["reaction_count"] += len(msg.reactions)
-            
+
             if stats["first_message"] is None or msg.date < stats["first_message"]:
                 stats["first_message"] = msg.date
             if stats["last_message"] is None or msg.date > stats["last_message"]:
                 stats["last_message"] = msg.date
-        
+
         return user_stats
-    
+
     def get_daily_activity(self, chat: Optional[Chat] = None) -> Dict[str, int]:
         """
         Returns activity by day.
-        
+
         Args:
             chat: Chat to analyze. If None, current chat is used.
-            
+
         Returns:
             Dict[str, int]: Dictionary day -> number of messages
         """
         target_chat = chat or self._current_chat
         if not target_chat:
             return {}
-        
+
         from collections import defaultdict
         daily_counts = defaultdict(int)
-        
+
         for msg in target_chat.messages:
             if isinstance(msg, Message):
                 date_str = msg.date.strftime("%Y-%m-%d")
                 daily_counts[date_str] += 1
-        
+
         return dict(daily_counts)

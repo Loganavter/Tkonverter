@@ -8,23 +8,15 @@ from PyQt6.QtCore import (
     QRectF,
     QSize,
     Qt,
+    QTimer,
     pyqtProperty,
 )
 from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QCheckBox, QSizePolicy, QWidget
 
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from ...managers.theme_manager import ThemeManager
 
 class FluentCheckBox(QCheckBox):
-    """
-    Fluent Design checkbox widget with smooth animations and hover effects.
-
-    This is the shared version that combines the best features from both projects:
-    - Smooth hover and check animations
-    - Proper event handling for hover states
-    - Support for grouped checkboxes (from Tkonverter)
-    - Clean, maintainable code structure
-    """
     INDICATOR_SIZE = 20
     INDICATOR_RADIUS = 4
     OUTLINE_WIDTH = 1
@@ -66,6 +58,7 @@ class FluentCheckBox(QCheckBox):
         self._checked_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         self.stateChanged.connect(self._on_state_changed)
+        self._group_parent = None
 
     def get_hover_progress(self) -> float:
         return self._hover_progress
@@ -95,7 +88,8 @@ class FluentCheckBox(QCheckBox):
 
     def _text_rect_available(self, full_rect: QRectF, indicator_rect: QRectF) -> QRectF:
         text_left = indicator_rect.right() + self.SPACING
-        available_w = max(0.0, full_rect.width() - (text_left - full_rect.left()) - self.PADDING_H)
+
+        available_w = max(0.0, self.width() - text_left - self.PADDING_H)
         return QRectF(text_left, full_rect.y(), available_w, full_rect.height())
 
     def _text_rect_content(self, full_rect: QRectF, indicator_rect: QRectF, fm: QFontMetrics) -> QRectF:
@@ -119,11 +113,34 @@ class FluentCheckBox(QCheckBox):
                 self._animate_hover(False)
             return True
 
-        elif e.type() == QEvent.Type.HoverLeave and self._hover_progress > 0:
+        elif e.type() == QEvent.Type.Leave and self._hover_progress > 0:
             self._animate_hover(False)
             return True
 
         return super().event(e)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+
+        if not self._group_parent:
+            self._group_parent = self._find_group_parent()
+            if self._group_parent:
+                self._group_parent.installEventFilter(self)
+
+    def eventFilter(self, watched_object, event):
+        if watched_object == self._group_parent and event.type() == QEvent.Type.Leave:
+            if self._hover_progress > 0:
+                self._animate_hover(False)
+
+        return super().eventFilter(watched_object, event)
+
+    def _find_group_parent(self) -> QWidget | None:
+        parent = self.parent()
+        while parent:
+            if parent.__class__.__name__ == 'CustomGroupWidget':
+                return parent
+            parent = parent.parent()
+        return None
 
     def mouseReleaseEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -140,11 +157,13 @@ class FluentCheckBox(QCheckBox):
         super().mouseReleaseEvent(e)
 
     def focusInEvent(self, e):
-        self.update()
+
+        QTimer.singleShot(0, self.update)
         super().focusInEvent(e)
 
     def focusOutEvent(self, e):
-        self.update()
+
+        QTimer.singleShot(0, self.update)
         super().focusOutEvent(e)
 
     def changeEvent(self, e):
@@ -159,9 +178,6 @@ class FluentCheckBox(QCheckBox):
         self._checked_anim.start()
 
     def _animate_hover(self, hovered: bool):
-
-        if hovered and not self.underMouse():
-            return
         self._hover_anim.stop()
         self._hover_anim.setStartValue(self._hover_progress)
         self._hover_anim.setEndValue(1.0 if hovered else 0.0)
@@ -169,7 +185,8 @@ class FluentCheckBox(QCheckBox):
 
     def sizeHint(self) -> QSize:
         fm = QFontMetrics(self.font())
-        text_width = fm.horizontalAdvance(self.text()) if self.text() else 0
+
+        text_width = fm.horizontalAdvance(self.text()) + 10 if self.text() else 0
         h = max(self.INDICATOR_SIZE + 2 * self.PADDING_V, fm.height() + 2 * self.PADDING_V)
         w = self.PADDING_H + self.INDICATOR_SIZE + (self.SPACING if text_width else 0) + text_width + self.PADDING_H
         return QSize(w, h)
@@ -191,20 +208,30 @@ class FluentCheckBox(QCheckBox):
         border = theme.get_color("dialog.border")
         text_color = theme.get_color("dialog.text")
         neutral_hover = theme.get_color("dialog.button.hover")
-        disabled_alpha = 110
+
+        disabled_alpha = 130
+
+        disabled_color = QColor(border.red(), border.green(), border.blue())
 
         is_disabled = not self.isEnabled()
         is_checked = self.checkState() == Qt.CheckState.Checked
         is_indeterminate = self.checkState() == Qt.CheckState.PartiallyChecked
 
         if is_checked or is_indeterminate:
-            border_color = border if not is_disabled else QColor(border.red(), border.green(), border.blue(), disabled_alpha)
+            if not is_disabled:
+                border_color = border
+                accent_fill = QColor(accent)
+            else:
+                border_color = QColor(border.red(), border.green(), border.blue(), disabled_alpha)
+                accent_fill = QColor(disabled_color)
+
             painter.setPen(QPen(border_color, self.OUTLINE_WIDTH))
-            accent_fill = QColor(accent)
 
             base_alpha = int(120 + 135 * self._checked_progress)
+
             if is_disabled:
-                base_alpha = int(base_alpha * 0.6)
+                base_alpha = 150
+
             accent_fill.setAlpha(max(0, min(255, base_alpha)))
             painter.setBrush(QBrush(accent_fill))
             painter.drawRoundedRect(indicator_rect, self.INDICATOR_RADIUS, self.INDICATOR_RADIUS)
@@ -222,7 +249,8 @@ class FluentCheckBox(QCheckBox):
         if is_checked or is_indeterminate:
             glyph_color = QColor(Qt.GlobalColor.white)
             if is_disabled:
-                glyph_color.setAlpha(disabled_alpha)
+
+                glyph_color.setAlpha(200)
 
             if is_checked:
                 painter.save()
@@ -264,7 +292,15 @@ class FluentCheckBox(QCheckBox):
         if self.text():
             painter.setPen(QPen(QColor(text_color) if not is_disabled else QColor(text_color.red(), text_color.green(), text_color.blue(), disabled_alpha)))
 
-            elided = fm.elidedText(self.text(), Qt.TextElideMode.ElideRight, int(text_rect_avail.width()))
-            painter.drawText(text_rect_avail, int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft), elided)
+            full_text = self.text()
+
+            if fm.horizontalAdvance(full_text) > text_rect_avail.width():
+                full_text = fm.elidedText(full_text, Qt.TextElideMode.ElideRight, int(text_rect_avail.width()))
+
+                draw_rect = text_rect_avail
+            else:
+                draw_rect = text_rect_avail
+            painter.drawText(draw_rect, int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft), full_text)
 
         painter.end()
+

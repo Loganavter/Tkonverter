@@ -7,12 +7,13 @@ from PyQt6.QtCore import (
     QRectF,
     QSize,
     Qt,
+    QTimer,
     pyqtProperty,
 )
 from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QRadioButton, QSizePolicy
 
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from ...managers.theme_manager import ThemeManager
 
 class FluentRadioButton(QRadioButton):
     INDICATOR_SIZE = 20
@@ -109,19 +110,14 @@ class FluentRadioButton(QRadioButton):
 
         super().mouseReleaseEvent(e)
 
-    def enterEvent(self, e):
-
-        super().enterEvent(e)
-
-    def leaveEvent(self, e):
-        super().leaveEvent(e)
-
     def focusInEvent(self, e):
-        self.update()
+
+        QTimer.singleShot(0, self.update)
         super().focusInEvent(e)
 
     def focusOutEvent(self, e):
-        self.update()
+
+        QTimer.singleShot(0, self.update)
         super().focusOutEvent(e)
 
     def changeEvent(self, e):
@@ -129,9 +125,6 @@ class FluentRadioButton(QRadioButton):
         super().changeEvent(e)
 
     def _animate_hover(self, hovered: bool):
-
-        if hovered and not self.underMouse():
-            return
         self._hover_anim.stop()
         self._hover_anim.setStartValue(self._hover_progress)
         self._hover_anim.setEndValue(1.0 if hovered else 0.0)
@@ -141,8 +134,7 @@ class FluentRadioButton(QRadioButton):
         fm = QFontMetrics(self.font())
         text_width = fm.horizontalAdvance(self.text()) if self.text() else 0
 
-        # Increased extra padding for better text display
-        extra = 8  # Reduced from 12 to 8 for less excessive sizing
+        extra = 4
         h = max(self.INDICATOR_SIZE + 2 * self.PADDING_V, fm.height() + 2 * self.PADDING_V)
         w = self.PADDING_H + self.INDICATOR_SIZE + (self.SPACING if text_width else 0) + text_width + self.PADDING_H + extra
         return QSize(w, h)
@@ -219,3 +211,4 @@ class FluentRadioButton(QRadioButton):
             painter.drawText(draw_rect, int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft), full_text)
 
         painter.end()
+

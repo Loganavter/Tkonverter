@@ -2,7 +2,11 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+import logging
+
 from src.presenters.app_state import AppState
+
+logger = logging.getLogger(__name__)
 
 class ConfigPresenter(QObject):
     """Presenter for managing configuration panel (Profile, Names, Options)."""
@@ -29,6 +33,8 @@ class ConfigPresenter(QObject):
         old_value = self._app_state.get_config_value(key)
 
         if old_value != value:
+            logger.debug(f"Config changed: {key} -> {value}")
+
             had_analysis_data_before = self._app_state.has_analysis_data()
 
             self._app_state.set_config_value(key, value)
@@ -45,13 +51,6 @@ class ConfigPresenter(QObject):
 
             if key not in ["disabled_nodes"]:
                 self._update_preview()
-
-            if (self._app_state.get_config_value("auto_recalc", False) and
-                self._app_state.has_chat_loaded() and
-                not self._app_state.is_processing and
-                key not in ["auto_detect_profile", "auto_recalc", "disabled_nodes"]):
-
-                self.config_changed.emit("auto_recalc_triggered", True)
 
     def _update_preview(self):
         """Updates preview when configuration changes."""

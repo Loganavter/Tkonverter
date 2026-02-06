@@ -4,8 +4,8 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from src.resources.translations import tr
-from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
-from src.shared_toolkit.utils.paths import resource_path
+from shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from shared_toolkit.utils.paths import resource_path
 
 def setup_dialog_scaffold(
     dialog: QDialog,
@@ -19,9 +19,12 @@ def setup_dialog_scaffold(
 
     dialog.ok_button = CustomButton(None, ok_text)
     dialog.ok_button.setProperty("class", "primary")
-    dialog.ok_button.setFixedSize(100, 30)
+
+    ok_size = dialog.ok_button.sizeHint()
+    dialog.ok_button.setMinimumSize(max(ok_size.width(), 80), ok_size.height())
     dialog.cancel_button = CustomButton(None, cancel_text)
-    dialog.cancel_button.setFixedSize(100, 30)
+    cancel_size = dialog.cancel_button.sizeHint()
+    dialog.cancel_button.setMinimumSize(max(cancel_size.width(), 80), cancel_size.height())
 
     dialog.ok_button.clicked.connect(dialog.accept)
     dialog.cancel_button.clicked.connect(dialog.reject)

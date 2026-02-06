@@ -1,53 +1,48 @@
-"""
-Unified text label components for shared toolkit.
 
-This module provides various label types used across projects:
-- BodyLabel: Standard body text with normal size
-- CaptionLabel: Smaller caption text
-- AdaptiveLabel: Smart label with automatic text truncation
-- CompactLabel: Compact label for minimal spacing
-- GroupTitleLabel: Special label for group titles
-"""
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QFont, QFontMetrics
 from PyQt6.QtWidgets import QLabel, QSizePolicy
 
 class BodyLabel(QLabel):
-    """Standard label for body text with normal font size."""
 
     def __init__(self, parent=None, text: str = ""):
         super().__init__(parent)
         if text:
             self.setText(text)
         self.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        self._update_font()
 
+    def _update_font(self):
         font = QFont(self.font())
-        font.setPointSize(max(10, font.pointSize()))
+
+        font.setPointSize(12)
         self.setFont(font)
 
+    def changeEvent(self, event: QEvent):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ApplicationFontChange:
+            self._update_font()
+
 class CaptionLabel(QLabel):
-    """Smaller label for captions and secondary text."""
 
     def __init__(self, text: str = "", parent=None):
         super().__init__(text, parent)
         self.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        self._update_font()
+
+    def _update_font(self):
         font = QFont(self.font())
 
-        size = font.pointSize()
-        if size > 0:
-            font.setPointSize(max(9, size - 1))
+        font.setPointSize(11)
         self.setFont(font)
 
-class AdaptiveLabel(QLabel):
-    """
-    Label with automatic text truncation when space is insufficient.
+    def changeEvent(self, event: QEvent):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ApplicationFontChange:
+            self._update_font()
 
-    Features:
-    - Automatically elides text when width is too small
-    - Caches original text for proper resizing
-    - Maintains size hints for layout management
-    """
+class AdaptiveLabel(QLabel):
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
@@ -59,7 +54,6 @@ class AdaptiveLabel(QLabel):
         self.setMinimumWidth(self._min_width)
 
     def setText(self, text):
-        """Sets text and saves original."""
         self._original_text = text
         self._preferred_width_cache = None
         super().setText(text)
@@ -67,17 +61,21 @@ class AdaptiveLabel(QLabel):
         self.updateGeometry()
 
     def setMinimumWidth(self, width):
-        """Sets minimum width."""
         self._min_width = width
         super().setMinimumWidth(width)
 
     def resizeEvent(self, event):
-        """Handles size change."""
         super().resizeEvent(event)
         self._update_text()
 
+    def changeEvent(self, event: QEvent):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ApplicationFontChange:
+            self._preferred_width_cache = None
+            self._update_text()
+            self.updateGeometry()
+
     def _update_text(self):
-        """Updates displayed text considering available width."""
         if not self._original_text:
             return
 
@@ -97,7 +95,6 @@ class AdaptiveLabel(QLabel):
         super().setText(elided_text)
 
     def sizeHint(self):
-        """Returns preferred size."""
         hint = super().sizeHint()
 
         if self._preferred_width_cache is None:
@@ -110,22 +107,18 @@ class AdaptiveLabel(QLabel):
         return hint
 
     def minimumSizeHint(self):
-        """Returns minimum size."""
         hint = super().minimumSizeHint()
         hint.setWidth(self._min_width)
         return hint
 
     def get_original_text(self):
-        """Returns original (untruncated) text."""
         return self._original_text
 
     def invalidate_size_cache(self):
-        """Resets size cache (useful when changing font/theme)."""
         self._preferred_width_cache = None
         self.updateGeometry()
 
 class CompactLabel(AdaptiveLabel):
-    """Compact label for options with minimal margins."""
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
@@ -134,7 +127,6 @@ class CompactLabel(AdaptiveLabel):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
 class GroupTitleLabel(AdaptiveLabel):
-    """Special label for group titles with border update support."""
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
@@ -142,21 +134,17 @@ class GroupTitleLabel(AdaptiveLabel):
         self.setObjectName("StyledGroupTitle")
 
     def set_group_widget(self, group_widget):
-        """Links label to group widget for size updates."""
         self._group_widget = group_widget
 
     def setText(self, text):
-        """Sets text and updates group sizes."""
         super().setText(text)
         self._update_group_size()
 
     def resizeEvent(self, event):
-        """Handles size change and updates group."""
         super().resizeEvent(event)
         self._update_group_size()
 
     def _update_group_size(self):
-        """Updates group minimum width to fit new title size."""
         if self._group_widget and self._original_text:
             font_metrics = QFontMetrics(self.font())
             text_width = font_metrics.horizontalAdvance(self._original_text)

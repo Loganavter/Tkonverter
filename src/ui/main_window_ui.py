@@ -11,18 +11,21 @@ from PyQt6.QtWidgets import (
 
 from src.resources.translations import tr
 from src.ui.icon_manager import AppIcon, get_app_icon
-from src.ui.widgets.atomic.adaptive_label import AdaptiveLabel, CompactLabel
+from shared_toolkit.ui.widgets.atomic.text_labels import AdaptiveLabel, CompactLabel
 from src.ui.widgets.atomic.drop_zone_label import DropZoneLabel
-from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
-from src.shared_toolkit.ui.widgets.atomic.custom_group_widget import CustomGroupBuilder
-from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from src.shared_toolkit.ui.widgets.atomic.fluent_radio import FluentRadioButton
-from src.shared_toolkit.ui.widgets.atomic.fluent_switch import FluentSwitch
+from shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from shared_toolkit.ui.widgets.atomic.custom_group_widget import CustomGroupBuilder
+from shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from shared_toolkit.ui.widgets.atomic.fluent_radio import FluentRadioButton
+from shared_toolkit.ui.widgets.atomic.fluent_switch import FluentSwitch
 from src.ui.widgets.atomic.time_line_edit import TimeLineEdit
 
-class Ui_TkonverterMainWindow(object):
+class Ui_MainWindow(object):
+    def __init__(self):
+        pass
+
     def setupUi(self, MainWindow):
-        MainWindow.setObjectName("TkonverterMainWindow")
+        MainWindow.setObjectName("MainWindow")
 
         main_layout = QHBoxLayout(MainWindow)
         main_layout.setSpacing(10)
@@ -34,21 +37,21 @@ class Ui_TkonverterMainWindow(object):
         left_layout = QVBoxLayout(self.left_column)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(10)
-        # Set proper size policy for left column
+
         self.left_column.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         self.middle_column = QWidget()
         middle_layout = QVBoxLayout(self.middle_column)
         middle_layout.setContentsMargins(0, 0, 0, 0)
         middle_layout.setSpacing(10)
-        # Set proper size policy for middle column
+
         self.middle_column.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         self.right_column = QWidget()
         right_layout = QVBoxLayout(self.right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
-        # Set proper size policy for right column
+
         self.right_column.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         self.profile_group, profile_layout, self.profile_group_title = (
@@ -110,7 +113,7 @@ class Ui_TkonverterMainWindow(object):
         self.streak_time_container = QWidget()
         h_layout_streak_time = QHBoxLayout(self.streak_time_container)
         h_layout_streak_time.setContentsMargins(0, 0, 0, 0)
-        self.label_streak_break_time = CompactLabel(tr("Streak break time:"))
+        self.label_streak_break_time = CompactLabel(tr("Streak break time"))
         self.line_edit_streak_break_time = TimeLineEdit("20:00")
 
         h_layout_markdown = QHBoxLayout()
@@ -228,27 +231,37 @@ class Ui_TkonverterMainWindow(object):
         self.calendar_button.setToolTip(tr("Calendar View"))
         self.diagram_button = CustomButton(get_app_icon(AppIcon.CHART), "")
         self.diagram_button.setToolTip(tr("Token Analysis"))
+        self.statistics_button = CustomButton(get_app_icon(AppIcon.CHART), "")
+        self.statistics_button.setToolTip(tr("Communication Analysis"))
         ai_buttons_layout.addStretch()
         ai_buttons_layout.addWidget(self.recalculate_button)
         ai_buttons_layout.addWidget(self.calendar_button)
         ai_buttons_layout.addWidget(self.diagram_button)
+        ai_buttons_layout.addWidget(self.statistics_button)
         ai_layout.addLayout(ai_buttons_layout)
 
         middle_layout.addWidget(self.ai_group)
 
         self.left_part = QWidget()
+        self.left_part.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_part_layout = QVBoxLayout(self.left_part)
         left_part_layout.setContentsMargins(0, 0, 0, 0)
         left_part_layout.setSpacing(10)
 
-        columns_container = QWidget()
-        columns_layout = QHBoxLayout(columns_container)
-        columns_layout.setContentsMargins(0, 0, 0, 0)
-        columns_layout.setSpacing(10)
-        columns_layout.addWidget(self.left_column)
-        columns_layout.addWidget(self.middle_column)
+        self.columns_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.columns_splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-        left_part_layout.addWidget(columns_container)
+        self.columns_splitter.addWidget(self.left_column)
+        self.columns_splitter.addWidget(self.middle_column)
+
+        self.columns_splitter.setSizes([240, 310])
+        self.columns_splitter.setStretchFactor(0, 1)
+        self.columns_splitter.setStretchFactor(1, 1)
+
+        self.columns_splitter.setChildrenCollapsible(False)
+        self.columns_splitter.setHandleWidth(6)
+
+        left_part_layout.addWidget(self.columns_splitter)
 
         self.drop_zone = DropZoneLabel(tr("Drag and drop result.json file here"))
         self.drop_zone.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -269,8 +282,8 @@ class Ui_TkonverterMainWindow(object):
             self.preview_group_title_label,
         ) = CustomGroupBuilder.create_styled_group(tr("Preview"))
 
-        self.preview_group.setFixedHeight(450)
-        self.preview_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.preview_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview_group.setMinimumHeight(200)
 
         self.preview_text_edit = QTextEdit()
         self.preview_text_edit.setObjectName("previewTextEdit")
@@ -295,15 +308,19 @@ class Ui_TkonverterMainWindow(object):
         terminal_layout.addWidget(self.log_output)
 
         self.terminal_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.terminal_group.setMinimumHeight(150)
 
         self.right_splitter.addWidget(self.preview_group)
         self.right_splitter.addWidget(self.terminal_group)
 
         self.right_splitter.setSizes([450, 200])
-        self.right_splitter.setStretchFactor(0, 0)
+        self.right_splitter.setStretchFactor(0, 1)
         self.right_splitter.setStretchFactor(1, 1)
+
         self.right_splitter.setCollapsible(0, False)
-        self.right_splitter.setCollapsible(1, True)
+        self.right_splitter.setCollapsible(1, False)
+        self.right_splitter.setChildrenCollapsible(False)
+        self.right_splitter.setHandleWidth(6)
 
         bottom_layout = QHBoxLayout()
 
@@ -316,14 +333,21 @@ class Ui_TkonverterMainWindow(object):
         self.install_manager_button.setToolTip(tr("Installation Manager"))
         self.settings_button = CustomButton(get_app_icon(AppIcon.SETTINGS), "")
         self.settings_button.setToolTip(tr("Settings"))
+        self.anonymization_button = CustomButton(get_app_icon(AppIcon.ANONYMIZATION), "")
+        self.anonymization_button.setToolTip(tr("Anonymization"))
         self.help_button = CustomButton(get_app_icon(AppIcon.HELP), "")
         self.help_button.setToolTip(tr("Help"))
         self.save_button = CustomButton(get_app_icon(AppIcon.SAVE), tr("Save to file..."))
         self.save_button.setProperty("class", "primary")
 
+        self.quick_save_button = CustomButton(get_app_icon(AppIcon.QUICK_SAVE), "")
+        self.quick_save_button.setToolTip(tr("Quick Save to Downloads (Ctrl+S)"))
+
         button_container_layout.addWidget(self.install_manager_button)
         button_container_layout.addWidget(self.settings_button)
+        button_container_layout.addWidget(self.anonymization_button)
         button_container_layout.addWidget(self.help_button)
+        button_container_layout.addWidget(self.quick_save_button)
         button_container_layout.addWidget(self.save_button)
 
         bottom_layout.addStretch()
@@ -337,11 +361,13 @@ class Ui_TkonverterMainWindow(object):
 
         self.main_splitter.setSizes([450, 900])
 
-        self.main_splitter.setStretchFactor(0, 0)
-        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setStretchFactor(0, 1)
+        self.main_splitter.setStretchFactor(1, 2)
 
         self.main_splitter.setCollapsible(0, False)
-        self.main_splitter.setCollapsible(1, True)
+        self.main_splitter.setCollapsible(1, False)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.setHandleWidth(6)
 
         main_layout.addWidget(self.main_splitter)
 
@@ -387,7 +413,7 @@ class Ui_TkonverterMainWindow(object):
         if hasattr(self, "label_show_optimization"):
             self.label_show_optimization.setText(tr("Optimization"))
         if hasattr(self, "label_streak_break_time"):
-            self.label_streak_break_time.setText(tr("Streak break time:"))
+            self.label_streak_break_time.setText(tr("Streak break time"))
         if hasattr(self, "label_show_markdown"):
             self.label_show_markdown.setText(tr("Show Markdown"))
         if hasattr(self, "label_show_links"):
@@ -414,14 +440,39 @@ class Ui_TkonverterMainWindow(object):
             self.recalculate_button.setText(tr("Calculate"))
         if hasattr(self, "save_button"):
             self.save_button.setText(tr("Save to file..."))
+        if hasattr(self, "quick_save_button"):
+            self.quick_save_button.setToolTip(tr("Quick Save to Downloads (Ctrl+S)"))
 
         if hasattr(self, "calendar_button"):
             self.calendar_button.setToolTip(tr("Calendar View"))
         if hasattr(self, "diagram_button"):
             self.diagram_button.setToolTip(tr("Token Analysis"))
+        if hasattr(self, "statistics_button"):
+            self.statistics_button.setToolTip(tr("Communication Analysis"))
         if hasattr(self, "install_manager_button"):
             self.install_manager_button.setToolTip(tr("Installation Manager"))
         if hasattr(self, "settings_button"):
             self.settings_button.setToolTip(tr("Settings"))
 
         self.update_group_titles_on_language_change()
+
+    def refresh_icons_for_current_theme(self):
+        """Обновляет иконки всех кнопок для текущей темы."""
+        if hasattr(self, "calendar_button"):
+            self.calendar_button.setIcon(get_app_icon(AppIcon.CALENDAR))
+        if hasattr(self, "diagram_button"):
+            self.diagram_button.setIcon(get_app_icon(AppIcon.CHART))
+        if hasattr(self, "statistics_button"):
+            self.statistics_button.setIcon(get_app_icon(AppIcon.CHART))
+        if hasattr(self, "install_manager_button"):
+            self.install_manager_button.setIcon(get_app_icon(AppIcon.DOWNLOAD))
+        if hasattr(self, "settings_button"):
+            self.settings_button.setIcon(get_app_icon(AppIcon.SETTINGS))
+        if hasattr(self, "anonymization_button"):
+            self.anonymization_button.setIcon(get_app_icon(AppIcon.ANONYMIZATION))
+        if hasattr(self, "help_button"):
+            self.help_button.setIcon(get_app_icon(AppIcon.HELP))
+        if hasattr(self, "save_button"):
+            self.save_button.setIcon(get_app_icon(AppIcon.SAVE))
+        if hasattr(self, "quick_save_button"):
+            self.quick_save_button.setIcon(get_app_icon(AppIcon.QUICK_SAVE))

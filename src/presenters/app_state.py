@@ -35,7 +35,7 @@ class AppState:
             "show_reactions": True,
             "show_reaction_authors": False,
             "my_name": "Me",
-            "partner_name": "Partner",
+            "partner_name": "",
             "show_optimization": False,
             "streak_break_time": "20:00",
             "show_markdown": True,
@@ -68,7 +68,7 @@ class AppState:
             from resources.translations import tr
 
             self.ui_config["my_name"] = tr("Me")
-            self.ui_config["partner_name"] = tr("Partner")
+            self.ui_config["partner_name"] = ""
 
         self.ui_config.setdefault("auto_detect_profile", True)
         self.ui_config.setdefault("auto_recalc", False)
@@ -87,7 +87,10 @@ class AppState:
         self.chat_file_path = None
         self.analysis_result = None
         self.analysis_tree = None
+
         self.disabled_node_ids.clear()
+        self.disabled_dates.clear()
+
         self.last_analysis_count = 0
         self.invalidate_cache()
 
@@ -189,16 +192,9 @@ class AppState:
         return self.ui_config.get(key, default)
 
     def set_config_value(self, key: str, value: Any):
-        """
-        Sets value in configuration.
+        """Sets value in configuration."""
 
-        Args:
-            key: Configuration key
-            value: New value
-        """
-        old_value = self.ui_config.get(key)
-        if old_value != value:
-            self.ui_config[key] = value
+        self.ui_config[key] = value
 
     def update_config(self, new_config: Dict[str, Any]):
         """

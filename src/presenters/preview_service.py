@@ -106,7 +106,7 @@ class PreviewService:
             partner_alias = config.get("partner_name", tr("Sister"))
 
             preview_data = {
-                "name": "Alice",
+                "name": tr("Preview: Alice"),
                 "messages": [
                     {
                         "id": 1,

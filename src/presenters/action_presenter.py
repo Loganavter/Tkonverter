@@ -4,6 +4,7 @@ from typing import Optional, Any
 from PyQt6.QtCore import QObject, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
+from shared_toolkit.utils.file_utils import get_unique_filepath
 from src.core.application.conversion_service import ConversionService
 from src.core.application.tokenizer_service import TokenizerService
 from src.core.domain.models import Chat
@@ -44,6 +45,7 @@ class ActionPresenter(QObject):
     def _connect_signals(self):
         """Connects UI signals to presenter methods."""
         self._view.save_button_clicked.connect(self.on_save_clicked)
+        self._view.quick_save_button_clicked.connect(self.on_quick_save_clicked)
         self._view.settings_button_clicked.connect(self.on_settings_clicked)
         self._view.install_manager_button_clicked.connect(self.on_install_manager_clicked)
         self._view.help_button_clicked.connect(self.on_help_clicked)
@@ -61,7 +63,7 @@ class ActionPresenter(QObject):
         sanitized_name = re.sub(r'[\\/*?:"<>|]', "_", chat_name)[:80]
 
         from src.ui.dialogs.export_dialog import ExportDialog
-        from src.shared_toolkit.utils.file_utils import get_unique_filepath
+        from shared_toolkit.utils.file_utils import get_unique_filepath
 
         if self._export_dialog is not None:
             try:
@@ -88,6 +90,69 @@ class ActionPresenter(QObject):
 
             pass
 
+    def on_quick_save_clicked(self):
+        """Handles quick save button click."""
+        import logging
+        logger = logging.getLogger("Tkonverter")
+        logger.info("Quick save button clicked")
+
+        if self._app_state.is_processing:
+            logger.info("Already processing, ignoring quick save")
+            return
+
+        if not self._app_state.has_chat_loaded():
+            logger.warning("No chat loaded, showing error")
+            self._view.show_status(message_key="Please load a JSON file first.", is_error=True)
+            return
+
+        import os
+        default_dir = self._settings_manager.settings.value("export_default_dir", "", type=str)
+        if not default_dir:
+
+            default_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+            logger.info(f"Using default Downloads directory: {default_dir}")
+        else:
+            logger.info(f"Using saved export directory: {default_dir}")
+
+        chat_name = self._app_state.get_chat_name()
+        sanitized_name = re.sub(r'[\\/*?:"<>|]', "_", chat_name)[:80]
+        logger.info(f"Chat name: {chat_name}, sanitized: {sanitized_name}")
+
+        from shared_toolkit.utils.file_utils import get_unique_filepath
+        final_path = get_unique_filepath(default_dir, sanitized_name, ".txt")
+        logger.info(f"Final export path: {final_path}")
+
+        self._perform_export(final_path)
+
+    def _get_config_with_anonymization(self) -> dict:
+        """Подготавливает config с настройками анонимизации."""
+        config = self._app_state.ui_config.copy()
+        anonymization_settings = self._settings_manager.load_anonymization_settings()
+        if anonymization_settings:
+            config["anonymization"] = anonymization_settings
+        return config
+
+    def _perform_export(self, final_path: str):
+        """Performs export without dialog."""
+        import logging
+        logger = logging.getLogger("Tkonverter")
+
+        logger.info(f"Starting quick export to: {final_path}")
+        self.set_processing_state_in_view(True, message_key="Saving file...")
+
+        worker = ConversionWorker(
+            self._conversion_service,
+            self._app_state.loaded_chat,
+            self._get_config_with_anonymization(),
+            final_path,
+            self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set(),
+        )
+        worker.signals.finished.connect(self._on_save_finished)
+
+        self._current_workers.append(worker)
+        self._threadpool.start(worker)
+        logger.info("Export worker started")
+
     def _handle_export_accepted(self):
         """Handles export confirmation."""
         if not self._export_dialog:
@@ -111,7 +176,7 @@ class ActionPresenter(QObject):
         worker = ConversionWorker(
             self._conversion_service,
             self._app_state.loaded_chat,
-            self._app_state.ui_config.copy(),
+            self._get_config_with_anonymization(),
             final_path,
             self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set(),
         )
@@ -204,7 +269,7 @@ class ActionPresenter(QObject):
 
         if new_font_mode != current_font_mode or new_font_family != current_font_family:
             self._settings_manager.save_ui_font_settings(new_font_mode, new_font_family)
-            from src.shared_toolkit.ui.managers.font_manager import FontManager
+            from shared_toolkit.ui.managers.font_manager import FontManager
             font_manager = FontManager.get_instance()
             font_manager.set_font(new_font_mode, new_font_family)
 
@@ -244,7 +309,7 @@ class ActionPresenter(QObject):
 
     def on_install_manager_clicked(self):
         """Handles install manager button click."""
-        from src.ui.dialogs.installation_manager_dialog import InstallationManagerDialog
+        from src.ui.dialogs.install_dialog import InstallDialog
 
         if self._install_dialog is not None:
             try:
@@ -267,7 +332,7 @@ class ActionPresenter(QObject):
             cache_info = self._tokenizer_service.check_model_cache(current_model)
             model_in_cache = cache_info.get("available", False)
 
-        self._install_dialog = InstallationManagerDialog(
+        self._install_dialog = InstallDialog(
             is_installed=is_installed,
             is_loaded=is_loaded,
             loaded_model_name=loaded_model_name,
@@ -442,7 +507,7 @@ class ActionPresenter(QObject):
 
     def on_help_clicked(self):
         """Handles help button click."""
-        from src.shared_toolkit.ui.dialogs.help_dialog import HelpDialog
+        from shared_toolkit.ui.dialogs.help_dialog import HelpDialog
 
         if self._help_dialog is not None:
             try:

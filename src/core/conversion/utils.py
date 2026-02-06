@@ -25,12 +25,17 @@ def pluralize_ru(number: int, key_form1: str, key_form2: str, key_form5: str) ->
     return tr(key_form5)
 
 def truncate_name(name: str | None, context: Optional["ConversionContext"] = None) -> str:
+    if not name:
+        return ""
+
+    if context and context.anonymizer:
+
+        name = context.anonymizer.anonymize_string_name(name)
+
     max_len = 20
     if context and "truncate_name_length" in context.config:
         max_len = context.config["truncate_name_length"]
 
-    if not name:
-        return ""
     if len(name) > max_len:
         return name[:max_len-3] + "..."
     return name
@@ -107,17 +112,39 @@ def process_text_to_plain(text_data, context: "ConversionContext") -> str:
     show_links = config.get("show_links", True)
 
     if isinstance(text_data, str):
-        return text_data
-    if isinstance(text_data, list):
+
+        return context.anonymizer.process_text(text_data) if context.anonymizer else text_data
+
+    elif isinstance(text_data, list):
         parts = []
         for item in text_data:
             if isinstance(item, str):
-                parts.append(item)
+
+                if context.anonymizer:
+                    parts.append(context.anonymizer.process_text(item))
+                else:
+                    parts.append(item)
             elif isinstance(item, dict) and "text" in item:
                 text = item["text"]
                 item_type = item.get("type")
+
+                if context.anonymizer and item_type not in ["text_mention", "text_link"]:
+                     text = context.anonymizer.process_text(text)
+
                 if item_type == "spoiler" and text == "\n":
                     text = ""
+
+                if item_type == "text_mention" and context.anonymizer:
+
+                    user_id = str(item.get("user_id", ""))
+
+                    anon_name = context.anonymizer.get_anonymized_name(user_id, text)
+                    parts.append(anon_name)
+                    continue
+
+                if item_type == "mention" and context.anonymizer:
+
+                    pass
 
                 if item_type == "bold" and show_markdown:
                     parts.append(f"**{text}**")
@@ -141,22 +168,28 @@ def process_text_to_plain(text_data, context: "ConversionContext") -> str:
                 elif item_type == "text_link":
                     if show_links:
                         href = item.get("href", "")
+
+                        if context.anonymizer and context.anonymizer.config.hide_links:
+                            href = context.anonymizer.process_text(href)
                         parts.append(f"[{text}]({href})")
                     else:
                         parts.append(text)
-
                 elif item_type == "link":
                     if show_links:
                         parts.append(text)
-
                 elif item_type == "blockquote" and show_markdown:
                     lines = text.split("\n")
                     formatted_lines = [f"> {line}" for line in lines]
                     parts.append("\n".join(formatted_lines))
                 else:
                     parts.append(text)
-        return "".join(parts)
-    return ""
+
+        raw_text = "".join(parts)
+        return raw_text
+    else:
+        raw_text = ""
+
+    return raw_text
 
 def markdown_to_html_for_preview(text: str) -> str:
     """Converts simple markdown-like text to basic HTML for preview."""

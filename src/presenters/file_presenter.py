@@ -18,6 +18,7 @@ class FilePresenter(QObject):
     profile_auto_detected = pyqtSignal(str)
     preview_updated = pyqtSignal(str, str)
     set_drop_zone_style_command = pyqtSignal(str)
+    analysis_count_updated = pyqtSignal(int, str)
 
     def __init__(self, view, app_state: AppState, chat_service: ChatService, preview_service):
         super().__init__()
@@ -41,6 +42,12 @@ class FilePresenter(QObject):
         """Handles file drag-and-drop."""
         if self._app_state.is_processing:
             return
+
+        self._app_state.clear_chat()
+        self._app_state.clear_analysis()
+
+        if hasattr(self, 'analysis_count_updated'):
+            self.analysis_count_updated.emit(-1, "chars")
 
         self.set_processing_state_in_view(True, message_key="Loading file...")
 
@@ -69,12 +76,6 @@ class FilePresenter(QObject):
                     if detected_profile == "personal":
 
                         chat_stats = self._chat_service.get_chat_statistics(result)
-                        if chat_stats and "most_active_user" in chat_stats:
-                            partner_name = chat_stats["most_active_user"]
-                            if partner_name and partner_name != tr("Partner"):
-                                self._app_state.set_config_value("partner_name", partner_name)
-
-                                self._view.ui.line_edit_partner_name.setText(partner_name)
 
             file_path = self._chat_service.get_current_file_path()
             self._app_state.set_chat(result, file_path)

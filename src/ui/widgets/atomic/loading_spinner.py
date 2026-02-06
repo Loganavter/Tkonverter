@@ -2,7 +2,7 @@ from PyQt6.QtCore import QPointF, Qt, QTimer
 from PyQt6.QtGui import QColor, QConicalGradient, QPainter, QPainterPath
 from PyQt6.QtWidgets import QWidget
 
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class LoadingSpinner(QWidget):
     def __init__(self, parent=None):

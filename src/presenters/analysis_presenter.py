@@ -1,12 +1,15 @@
 from typing import Optional, Set, Dict, Any
 
 from PyQt6.QtCore import QObject, QThreadPool, pyqtSignal
+
+import logging
 from PyQt6.QtWidgets import QMessageBox
 
 from src.core.analysis.tree_analyzer import TreeNode
 from src.core.analysis.tree_identity import TreeNodeIdentity
 from src.core.application.analysis_service import AnalysisService
 from src.core.application.chat_service import ChatService
+from src.core.application.statistics_service import StatisticsService
 from src.core.conversion.domain_adapters import chat_to_dict
 from src.core.domain.models import AnalysisResult, Chat
 from src.presenters.app_state import AppState
@@ -14,7 +17,9 @@ from src.presenters.workers import AnalysisWorker, TreeBuildWorker
 from src.resources.translations import tr
 from src.ui.dialogs.analysis.analysis_dialog import AnalysisDialog
 
-class AnalysisPresenterExtended(QObject):
+logger = logging.getLogger(__name__)
+
+class AnalysisPresenter(QObject):
     """Extended presenter for managing analysis functionality and dialogs."""
 
     filter_changed = pyqtSignal(set)
@@ -22,12 +27,13 @@ class AnalysisPresenterExtended(QObject):
     analysis_completed = pyqtSignal(TreeNode)
     disabled_nodes_changed = pyqtSignal(set)
 
-    def __init__(self, view, app_state: AppState, analysis_service: AnalysisService, chat_service: ChatService, theme_manager):
+    def __init__(self, view, app_state: AppState, analysis_service: AnalysisService, chat_service: ChatService, statistics_service: StatisticsService, theme_manager):
         super().__init__()
         self._view = view
         self._app_state = app_state
         self._analysis_service = analysis_service
         self._chat_service = chat_service
+        self._statistics_service = statistics_service
         self._theme_manager = theme_manager
 
         self._threadpool = QThreadPool()
@@ -43,6 +49,9 @@ class AnalysisPresenterExtended(QObject):
         self._view.recalculate_clicked.connect(self.on_recalculate_clicked)
         self._view.calendar_button_clicked.connect(self.on_calendar_clicked)
         self._view.diagram_button_clicked.connect(self.on_diagram_clicked)
+
+        if hasattr(self._view, 'statistics_button_clicked'):
+            self._view.statistics_button_clicked.connect(self.on_statistics_clicked)
 
     def on_recalculate_clicked(self):
         """Handles recalculate button click."""
@@ -83,8 +92,10 @@ class AnalysisPresenterExtended(QObject):
             self.analysis_completed.emit(tree)
             self.disabled_nodes_changed.emit(set())
         else:
+
+            error_message = f"Analysis error: {message}" if message else "Analysis failed or no data found."
             self._view.show_status(
-                message_key="Analysis failed or no data found.",
+                message=error_message,
                 is_error=True
             )
             self.analysis_count_updated.emit(-1, "chars")
@@ -322,19 +333,26 @@ class AnalysisPresenterExtended(QObject):
             pass
 
     def on_config_value_changed_for_update(self, key: str, value: Any):
-        """СИНХРОННОЕ обновление анализа при изменении настроек с гарантией сохранности disabled_dates"""
-        if not self._app_state.has_analysis_data():
+        """СИНХРОННОЕ обновление анализа при изменении настроек."""
+
+        if not self._app_state.has_chat_loaded():
             return
+
+        is_auto_recalc = self._app_state.get_config_value("auto_recalc", False)
 
         analysis_affecting_keys = [
             "profile", "show_service_notifications", "show_markdown",
             "show_links", "show_time", "show_reactions",
             "show_reaction_authors", "show_tech_info",
             "show_optimization", "streak_break_time",
-            "my_name", "partner_name"
+            "my_name", "partner_name",
+            "auto_recalc"
         ]
 
         if key not in analysis_affecting_keys:
+            return
+
+        if not is_auto_recalc and key != "auto_recalc":
             return
 
         try:
@@ -360,7 +378,6 @@ class AnalysisPresenterExtended(QObject):
                     extended_result
                 )
             else:
-
                 tree = self._analysis_service.build_analysis_tree(result, self._app_state.ui_config)
 
             self._app_state.set_analysis_result(result)
@@ -369,7 +386,7 @@ class AnalysisPresenterExtended(QObject):
             self._refresh_all_ui_sync()
 
         except Exception as e:
-            self._view.show_status(message_key="Error recalculating analysis", is_error=True)
+            print(f"Error during auto-recalc: {e}")
 
     def _extend_analysis_result_with_existing_tree(self, new_result: AnalysisResult, existing_tree: TreeNode) -> AnalysisResult:
         """
@@ -410,7 +427,6 @@ class AnalysisPresenterExtended(QObject):
             date_hierarchy=dict(extended_hierarchy),
             total_characters=new_result.total_characters,
             average_message_length=new_result.average_message_length,
-            most_active_user=new_result.most_active_user,
         )
         return extended_result
 
@@ -452,3 +468,50 @@ class AnalysisPresenterExtended(QObject):
             self.on_config_value_changed_for_update("disabled_nodes", None)
         except Exception as e:
             self._view.show_status(message_key="Error recalculating after date change", is_error=True)
+
+    def on_statistics_clicked(self):
+        """Handles statistics button click."""
+        if self._app_state.is_processing:
+            return
+
+        if not self._app_state.has_chat_loaded():
+            self._view.show_status(message_key="Please load a JSON file first.", is_error=True)
+            return
+
+        try:
+            stats = self._statistics_service.calculate_stats(self._app_state.loaded_chat)
+            self._show_statistics_dialog(stats)
+        except Exception as e:
+            self._view.show_status(message=f"Error calculating statistics: {e}", is_error=True)
+
+    def _show_statistics_dialog(self, stats):
+        """Shows statistics dialog with communication analysis."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QDialogButtonBox
+
+        dialog = QDialog(self._view)
+        dialog.setWindowTitle("Communication Analysis")
+        dialog.setMinimumWidth(500)
+
+        layout = QVBoxLayout()
+
+        title = QLabel("🧠 Communication Analysis")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        layout.addWidget(title)
+
+        layout.addWidget(QLabel(f"Total Sessions: {stats.total_sessions}"))
+        layout.addWidget(QLabel(f"Avg Session Duration: {stats.avg_session_duration_minutes:.1f} min"))
+        layout.addWidget(QLabel(f"Engagement Score: {stats.engagement_score} / 100 (Objective Index)"))
+
+        if stats.longest_session:
+            ls = stats.longest_session
+            layout.addWidget(QLabel(f"Longest Session: {ls.duration_minutes:.1f} min on {ls.start_time.date()}"))
+            layout.addWidget(QLabel(f"  - Messages: {ls.message_count}"))
+            layout.addWidget(QLabel(f"  - Characters: {ls.char_count}"))
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(buttons)
+
+        dialog.setLayout(layout)
+        self._theme_manager.apply_theme_to_dialog(dialog)
+        dialog.exec()

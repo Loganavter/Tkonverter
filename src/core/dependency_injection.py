@@ -59,6 +59,7 @@ def setup_container() -> DIContainer:
     from src.core.application.analysis_service import AnalysisService
     from src.core.application.chat_service import ChatService
     from src.core.application.conversion_service import ConversionService
+    from src.core.application.statistics_service import StatisticsService
     from src.core.application.tokenizer_service import TokenizerService
 
     container = get_container()
@@ -68,6 +69,7 @@ def setup_container() -> DIContainer:
         ConversionService, lambda: ConversionService(use_modern_formatters=False)
     )
     container.register_singleton(AnalysisService, lambda: AnalysisService())
+    container.register_singleton(StatisticsService, lambda: StatisticsService())
     container.register_singleton(TokenizerService, lambda: TokenizerService())
 
     return container

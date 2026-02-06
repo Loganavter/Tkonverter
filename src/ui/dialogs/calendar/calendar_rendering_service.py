@@ -17,8 +17,8 @@ from PyQt6.QtWidgets import (
 
 from src.resources.translations import tr
 from src.core.view_models import CalendarViewModel
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
-from src.shared_toolkit.ui.widgets.atomic import CustomButton
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from shared_toolkit.ui.widgets.atomic import CustomButton
 
 class CalendarDayButton(QPushButton):
     """Custom button for a day in calendar."""

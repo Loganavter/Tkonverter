@@ -1,14 +1,15 @@
-from PyQt6.QtCore import QRectF, Qt, QTime, pyqtSignal, QEvent
+from PyQt6.QtCore import QRectF, Qt, QTime, pyqtSignal, QEvent, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QHBoxLayout, QTimeEdit, QWidget
 
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
-from src.shared_toolkit.ui.widgets.helpers.underline_painter import UnderlineConfig, draw_bottom_underline
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from shared_toolkit.ui.widgets.helpers.underline_painter import UnderlineConfig, draw_bottom_underline
 
 class TimeLineEdit(QWidget):
     RADIUS = 6
     textChanged = pyqtSignal(str)
     editingFinished = pyqtSignal()
+    returnPressed = pyqtSignal()
 
     def __init__(self, initial_time: str = "00:05", parent=None):
         super().__init__(parent)
@@ -42,6 +43,8 @@ class TimeLineEdit(QWidget):
         self._time_edit.timeChanged.connect(self._on_internal_time_changed)
         self._time_edit.editingFinished.connect(self.editingFinished)
 
+        self._time_edit.editingFinished.connect(self.returnPressed)
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._time_edit)
@@ -55,7 +58,8 @@ class TimeLineEdit(QWidget):
         """Tracks focus events for internal QTimeEdit."""
         if obj is self._time_edit:
             if event.type() == QEvent.Type.FocusIn or event.type() == QEvent.Type.FocusOut:
-                self.update()
+
+                QTimer.singleShot(0, self.update)
         return super().eventFilter(obj, event)
 
     def _on_internal_time_changed(self, time_obj: QTime):

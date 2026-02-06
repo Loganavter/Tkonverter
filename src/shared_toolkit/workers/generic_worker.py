@@ -8,6 +8,7 @@ class WorkerSignals(QObject):
     error = pyqtSignal(tuple)
     result = pyqtSignal(object)
     progress = pyqtSignal(int)
+    partial_result = pyqtSignal(object)
 
 class GenericWorker(QRunnable):
     def __init__(self, fn, *args, **kwargs):

@@ -16,9 +16,9 @@ from PyQt6.QtWidgets import (
 from src.resources.translations import tr
 from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
 from src.ui.icon_manager import AppIcon, get_app_icon
-from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
-from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from src.shared_toolkit.utils.paths import resource_path
+from shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from shared_toolkit.utils.paths import resource_path
 
 class ExportDialog(QDialog):
 
@@ -210,6 +210,10 @@ class ExportDialog(QDialog):
         self.style().polish(self)
         self.update()
         self.updateGeometry()
+
+        if hasattr(self, 'btn_browse_dir'):
+            from src.ui.icon_manager import AppIcon, get_app_icon
+            self.btn_browse_dir.setIcon(get_app_icon(AppIcon.FOLDER_OPEN))
 
     def mousePressEvent(self, event: QMouseEvent):
         """Removes focus from input fields when clicking on empty area."""

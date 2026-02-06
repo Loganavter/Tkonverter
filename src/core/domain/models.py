@@ -201,7 +201,6 @@ class AnalysisResult:
     date_hierarchy: Dict[str, Dict[str, Dict[str, float]]]
     total_characters: Optional[int] = None
     average_message_length: Optional[float] = None
-    most_active_user: Optional[User] = None
     created_at: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):

@@ -17,21 +17,23 @@ except Exception:
 import argparse
 import logging
 
+logging.getLogger("markdown").setLevel(logging.CRITICAL)
+logging.getLogger("markdown.extensions").setLevel(logging.CRITICAL)
+
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
-from src.shared_toolkit.core import setup_simple_logging
 from src.core.settings import SettingsManager
 from src.core.theme import LIGHT_THEME_PALETTE, DARK_THEME_PALETTE
-from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
-from src.ui.tkonverter_main_window import TkonverterMainWindow
+from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.ui.main_window import MainWindow
 
-from src.shared_toolkit.utils.paths import resource_path
+from shared_toolkit.utils.paths import resource_path
 main_window = None
 
 def on_initialization_finished(initial_theme: str):
     global main_window
-    main_window = TkonverterMainWindow(initial_theme=initial_theme)
+    main_window = MainWindow(initial_theme=initial_theme)
     main_window.show()
 
 def main():
@@ -95,8 +97,14 @@ def main():
 
     theme_manager.register_palettes(LIGHT_THEME_PALETTE, DARK_THEME_PALETTE)
 
-    qss_path = os.path.join(os.path.dirname(__file__), "resources", "styles", "base.qss")
-    theme_manager.register_qss_path(qss_path)
+    app_qss = resource_path("resources/styles/base.qss")
+    theme_manager.register_qss_path(app_qss)
+
+    toolkit_base_qss = resource_path("shared_toolkit/ui/resources/styles/base.qss")
+    theme_manager.register_qss_path(toolkit_base_qss)
+
+    toolkit_qss = resource_path("shared_toolkit/ui/resources/styles/widgets.qss")
+    theme_manager.register_qss_path(toolkit_qss)
 
     theme_from_env = os.environ.get("APP_THEME", "").lower()
 

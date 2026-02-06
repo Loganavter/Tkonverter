@@ -2,20 +2,25 @@ from typing import Any, Dict, Optional, Set
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+import logging
+
 from src.core.analysis.tree_analyzer import TreeNode
 from src.core.application.analysis_service import AnalysisService
 from src.core.application.chat_service import ChatService
 from src.core.application.conversion_service import ConversionService
+from src.core.application.statistics_service import StatisticsService
 from src.core.application.tokenizer_service import TokenizerService
 from src.core.dependency_injection import DIContainer
 from src.core.domain.models import AnalysisResult, Chat
 from src.presenters.action_presenter import ActionPresenter
-from src.presenters.analysis_presenter_extended import AnalysisPresenterExtended
+from src.presenters.analysis_presenter import AnalysisPresenter
 from src.presenters.app_state import AppState
 from src.presenters.config_presenter import ConfigPresenter
 from src.presenters.file_presenter import FilePresenter
 from src.presenters.preview_service import PreviewService
 from src.resources.translations import tr
+
+logger = logging.getLogger(__name__)
 
 class MainPresenter(QObject):
     """Main presenter implementing Clean Architecture with service layer as a coordinator."""
@@ -57,11 +62,14 @@ class MainPresenter(QObject):
 
         self._current_session_theme = initial_theme
 
+        initial_config["partner_name"] = ""
+
         self._app_state = AppState(ui_config=initial_config)
 
         self._chat_service = self._di_container.get(ChatService)
         self._conversion_service = self._di_container.get(ConversionService)
         self._analysis_service = self._di_container.get(AnalysisService)
+        self._statistics_service = self._di_container.get(StatisticsService)
         self._tokenizer_service = self._di_container.get(TokenizerService)
 
         self._preview_service = PreviewService()
@@ -71,6 +79,8 @@ class MainPresenter(QObject):
         self._connect_signals()
 
         self._try_load_default_tokenizer()
+
+        self._update_analysis_unit()
 
         self._view.show_status(message_key="Ready to work", is_status=True)
 
@@ -89,11 +99,12 @@ class MainPresenter(QObject):
             self._preview_service
         )
 
-        self.analysis_presenter = AnalysisPresenterExtended(
+        self.analysis_presenter = AnalysisPresenter(
             self._view,
             self._app_state,
             self._analysis_service,
             self._chat_service,
+            self._statistics_service,
             self._theme_manager
         )
 
@@ -106,11 +117,14 @@ class MainPresenter(QObject):
             self._theme_manager,
             self._app
         )
+        self._anonymization_dialog = None
 
     def _connect_signals(self):
         """Connects signals between presenters and main presenter."""
+        logger.debug("Connecting signals in MainPresenter...")
 
         self.file_presenter.chat_loaded.connect(self.chat_loaded.emit)
+        self.file_presenter.chat_loaded.connect(self._on_chat_load_finished)
         self.file_presenter.profile_auto_detected.connect(self.profile_auto_detected.emit)
         self.file_presenter.preview_updated.connect(self.preview_updated.emit)
         self.file_presenter.set_drop_zone_style_command.connect(self.set_drop_zone_style_command.emit)
@@ -118,6 +132,8 @@ class MainPresenter(QObject):
         self.config_presenter.config_changed.connect(self.config_changed.emit)
         self.config_presenter.profile_auto_detected.connect(self.profile_auto_detected.emit)
         self.config_presenter.preview_updated.connect(self.preview_updated.emit)
+
+        self.config_presenter.config_changed.connect(self.analysis_presenter.on_config_value_changed_for_update)
 
         self.analysis_presenter.analysis_count_updated.connect(self.analysis_count_updated.emit)
         self.analysis_presenter.analysis_completed.connect(self.analysis_completed.emit)
@@ -128,20 +144,22 @@ class MainPresenter(QObject):
         self.action_presenter.tokenizer_changed.connect(lambda: self._update_analysis_unit())
         self.action_presenter.tokenizer_changed.connect(self.tokenizer_changed.emit)
 
-        self.config_presenter.config_changed.connect(self.analysis_presenter.on_config_value_changed_for_update)
-
         self._theme_manager.theme_changed.connect(self._on_app_theme_changed)
 
-        self.config_presenter.config_changed.connect(self._handle_config_change_for_auto_recalc)
+        self._view.anonymization_button_clicked.connect(self.on_anonymization_clicked)
 
-    def _handle_config_change_for_auto_recalc(self, key: str, value: Any):
-        """Handles config changes that might trigger auto-recalculation."""
-        if (key == "auto_recalc_triggered" and
-            self._app_state.get_config_value("auto_recalc", False) and
-            self._app_state.has_chat_loaded() and
-            not self._app_state.is_processing):
+        self._view.recalculate_clicked.connect(self.on_recalculate_clicked)
+        self._view.calendar_button_clicked.connect(self.on_calendar_clicked)
+        self._view.diagram_button_clicked.connect(self.on_diagram_clicked)
+        self._view.save_button_clicked.connect(self.on_save_clicked)
+        self._view.settings_button_clicked.connect(self.on_settings_clicked)
+        self._view.install_manager_button_clicked.connect(self.on_install_manager_clicked)
+        self._view.help_button_clicked.connect(self.on_help_clicked)
 
-            self.analysis_presenter.on_recalculate_clicked()
+        if hasattr(self._view, 'statistics_button_clicked'):
+            self._view.statistics_button_clicked.connect(self.on_statistics_clicked)
+
+        logger.debug("Signals connected successfully.")
 
     def _try_load_default_tokenizer(self):
         """Attempts to load the default tokenizer ONLY from local cache."""
@@ -169,7 +187,6 @@ class MainPresenter(QObject):
             self.tokenizer_changed.emit()
 
         except Exception as e:
-
             pass
 
     def _update_analysis_unit(self):
@@ -178,6 +195,10 @@ class MainPresenter(QObject):
 
         if self._app_state.last_analysis_unit != new_unit:
             self._app_state.last_analysis_unit = new_unit
+
+            if self._app_state.has_analysis_data():
+                self._app_state.clear_analysis()
+                self.analysis_count_updated.emit(-1, "chars")
             self.analysis_unit_changed.emit(new_unit)
 
     def _on_app_theme_changed(self):
@@ -300,6 +321,10 @@ class MainPresenter(QObject):
         """Handles diagram button click."""
         self.analysis_presenter.on_diagram_clicked()
 
+    def on_statistics_clicked(self):
+        """Handles statistics button click."""
+        self.analysis_presenter.on_statistics_clicked()
+
     def on_save_clicked(self):
         """Handles save button click."""
         self.action_presenter.on_save_clicked()
@@ -315,6 +340,89 @@ class MainPresenter(QObject):
     def on_help_clicked(self):
         """Handles help button click."""
         self.action_presenter.on_help_clicked()
+
+    def _on_chat_load_finished(self, success: bool, message: str, chat_name: str):
+        """Handles chat loading completion."""
+        if success:
+            try:
+
+                anon_config = self._settings_manager.load_anonymization_settings()
+                anon_config["custom_names"] = []
+                self._settings_manager.save_anonymization_settings(anon_config)
+                self._app_state.ui_config["anonymization"] = anon_config
+
+                if chat_name:
+
+                    self._app_state.ui_config["partner_name"] = "__FORCE_UPDATE__"
+                    self.config_presenter.on_config_changed("partner_name", chat_name)
+
+                if self._app_state.get_config_value("auto_recalc", False):
+                    self.on_recalculate_clicked()
+
+            except Exception as e:
+                logger.error(f"Error in MainPresenter._on_chat_load_finished: {e}", exc_info=True)
+
+    def on_anonymization_clicked(self):
+        """Handles anonymization button click."""
+        from src.ui.dialogs.anonymization_settings_dialog import AnonymizationSettingsDialog
+
+        if hasattr(self, '_anonymization_dialog') and self._anonymization_dialog is not None:
+            try:
+                self._anonymization_dialog.close()
+            except:
+                pass
+            self._anonymization_dialog = None
+
+        try:
+
+            anonymization_config = self._settings_manager.load_anonymization_settings()
+
+            known_names = []
+            known_domains = []
+
+            if self._app_state.has_chat_loaded() and self._app_state.loaded_chat:
+                chat = self._app_state.loaded_chat
+                users = chat.get_users()
+                known_names = [u.name for u in users if u.name]
+
+                try:
+
+                    from src.core.application.anonymizer_service import AnonymizerService
+                    from src.core.domain.anonymization import AnonymizationConfig
+
+                    temp_service = AnonymizerService(AnonymizationConfig())
+                    known_domains = temp_service.extract_unique_domains(chat)
+                except Exception as e:
+                    pass
+
+            self._anonymization_dialog = AnonymizationSettingsDialog(
+                current_config=anonymization_config,
+                settings_manager=self._settings_manager,
+                known_names=known_names,
+                known_domains=known_domains,
+                parent=self._view,
+            )
+
+            self._theme_manager.apply_theme_to_dialog(self._anonymization_dialog)
+            self.language_changed.connect(self._anonymization_dialog.retranslate_ui)
+            self._anonymization_dialog.accepted.connect(self._apply_anonymization_settings)
+
+            self._anonymization_dialog.show()
+
+        except Exception as e:
+            logger.exception("CRITICAL ERROR opening anonymization dialog")
+            self._view.show_status(message="Error opening anonymization settings", is_error=True)
+
+    def _apply_anonymization_settings(self):
+        """Applies anonymization settings from dialog."""
+        if not hasattr(self, '_anonymization_dialog') or not self._anonymization_dialog:
+            return
+
+        new_config = self._anonymization_dialog.get_config()
+        self._settings_manager.save_anonymization_settings(new_config)
+
+        self._app_state.ui_config["anonymization"] = new_config
+        self.config_presenter.on_config_changed("anonymization", new_config)
 
     def _generate_preview(self):
         """Starts a preview generation using hardcoded data."""

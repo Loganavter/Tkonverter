@@ -27,7 +27,8 @@ def resource_path(relative_path: str) -> str:
         base_path = Path(sys._MEIPASS)
     except Exception:
 
-        base_path = Path(__file__).resolve().parent.parent
+        current_file = Path(__file__).resolve()
+        base_path = current_file.parent.parent.parent
 
     full_path = base_path / relative_path
 

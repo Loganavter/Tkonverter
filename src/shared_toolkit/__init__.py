@@ -7,8 +7,8 @@ Shared Toolkit - Общая библиотека для проектов Improve
 - Общие скрипты и функции
 """
 
-from .utils import get_unique_filepath, resource_path
-from .ui.widgets.atomic import (
+from shared_toolkit.utils import get_unique_filepath, resource_path
+from shared_toolkit.ui.widgets.atomic import (
     FluentCheckBox,
     CustomButton,
     CustomLineEdit,
@@ -24,10 +24,14 @@ from .ui.widgets.atomic import (
     GroupTitleLabel,
     CustomGroupWidget,
     CustomGroupBuilder,
-    MinimalistScrollBar
+    MinimalistScrollBar,
+    OverlayScrollArea,
+    UnifiedIconButton,
+    ButtonMode
 )
-from .ui.managers import ThemeManager
-from .ui.services import IconService, get_icon_by_name, get_icon_service
+from shared_toolkit.ui.managers import ThemeManager, FlyoutManager
+from shared_toolkit.ui.services import IconService, get_icon_by_name, get_icon_service
+from shared_toolkit.ui.dialogs import HelpDialog
 
 __version__ = "1.1.0"
 __author__ = "Loganavter"
@@ -51,8 +55,13 @@ __all__ = [
     'CustomGroupWidget',
     'CustomGroupBuilder',
     'MinimalistScrollBar',
+    'OverlayScrollArea',
+    'UnifiedIconButton',
+    'ButtonMode',
     'ThemeManager',
+    'FlyoutManager',
     'IconService',
     'get_icon_by_name',
-    'get_icon_service'
+    'get_icon_service',
+    'HelpDialog'
 ]
