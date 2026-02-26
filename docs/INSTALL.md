@@ -10,7 +10,6 @@ Tkonverter is currently distributed primarily through source code installation. 
 
 ### Packaging
 
-- **Linux (Flatpak)**: Build from the [build/Flatpak-template/](../build/Flatpak-template/) manifest (e.g. `flatpak-builder build build/Flatpak-template/org.loganavter.Tkonverter.yaml`). The tokenizer (Hugging Face) is not included in the image; you can install it from the app: open **AI Component Management**, click **Install/Update transformers library**, wait for the install to finish, then **restart the application**. After restart, you can load tokenizer models and use token-based analysis.
 - **Windows**: PyInstaller + Inno Setup installer (planned). The tokenizer will be installable from the app after installation.
 - **Linux (AUR)** / **macOS**: Planned.
 
