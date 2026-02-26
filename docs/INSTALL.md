@@ -6,12 +6,12 @@ This document provides installation methods for end users and a minimal "run fro
 
 ### Current Status
 
-Tkonverter is currently distributed primarily through source code installation. This is due to the complexity of managing AI dependencies (Hugging Face models) and the need for dynamic model downloads that occur during runtime.
+Tkonverter is currently distributed primarily through source code installation. This is due to the complexity of managing AI dependencies (Hugging Face models) and the need for dynamic model downloads that occur during runtime. 
 
 ### Packaging
 
-- **Windows**: PyInstaller + Inno Setup installer (planned). The tokenizer will be installable from the app after installation.
-- **Linux (AUR)** / **macOS**: Planned.
+- **Windows**: PyInstaller + Inno Setup installed. The tokenizer will be installable from the app after installation.
+- **Flatpak** / **macOS**: Planned.
 
 Contributions for packaging solutions are welcome!
 
@@ -111,8 +111,10 @@ On Linux the application stores settings and per-chat data under `~/.config/Tkon
 To reset the application to defaults you can remove or rename the `~/.config/Tkonverter` directory (you will lose all saved settings, presets, and per-chat disabled dates/overrides).
 
 ---
+## Running on Windows (.exe)
+Simply download the .exe file from the [release](https://github.com/Loganavter/Tkonverter/releases) and install it. 
 
-## Running on Windows
+## Running on Windows (From source)
 
 Run the app from the **project root** (the folder containing `src`), not from inside `src`:
 
