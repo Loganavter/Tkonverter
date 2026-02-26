@@ -6,7 +6,7 @@ from typing import Dict, Type, TypeVar, Union
 
 from PyQt6.QtGui import QIcon
 
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 T = TypeVar('T')
 

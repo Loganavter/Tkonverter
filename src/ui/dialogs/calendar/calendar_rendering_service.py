@@ -1,6 +1,4 @@
-"""
-Calendar rendering service for UI components.
-"""
+
 
 from typing import List, Optional
 
@@ -17,11 +15,10 @@ from PyQt6.QtWidgets import (
 
 from src.resources.translations import tr
 from src.core.view_models import CalendarViewModel
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from shared_toolkit.ui.widgets.atomic import CustomButton
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic import CustomButton
 
 class CalendarDayButton(QPushButton):
-    """Custom button for a day in calendar."""
     date_clicked = pyqtSignal(QDate)
     date_context_menu = pyqtSignal(QDate)
 
@@ -47,11 +44,9 @@ class CalendarDayButton(QPushButton):
             self.date_context_menu.emit(self.date)
 
     def sizeHint(self):
-        """Returns preferred size for day button."""
         return QSize(50, 70)
 
 class CalendarRenderingService(QObject):
-    """Service for rendering calendar UI components."""
 
     date_clicked = pyqtSignal(QDate)
     date_context_menu = pyqtSignal(QDate)
@@ -73,7 +68,6 @@ class CalendarRenderingService(QObject):
         self._weekday_labels = []
 
     def create_day_view(self) -> QWidget:
-        """Creates day view widget."""
         widget = QWidget()
         main_layout = QVBoxLayout(widget)
         main_layout.setSpacing(5)
@@ -159,7 +153,6 @@ class CalendarRenderingService(QObject):
         return widget
 
     def update_day_view(self, vm: CalendarViewModel):
-        """Updates day view with new data."""
         bg_color_obj = self.theme_manager.get_color("dialog.background")
         text_color_obj = self.theme_manager.get_color("dialog.text")
         r, g, b = (int(text_color_obj.red() * 0.5 + bg_color_obj.red() * 0.5),
@@ -218,7 +211,6 @@ class CalendarRenderingService(QObject):
             btn.update(); lbl.update()
 
     def create_month_view(self) -> QWidget:
-        """Creates month view widget."""
         widget = QWidget()
         layout = QGridLayout(widget)
         layout.setSpacing(5)
@@ -247,7 +239,6 @@ class CalendarRenderingService(QObject):
         return widget
 
     def update_month_view(self, vm: CalendarViewModel):
-        """Updates month view with new data."""
         self.current_year = vm.current_year
         bg_color_obj = self.theme_manager.get_color("dialog.background")
         text_color_obj = self.theme_manager.get_color("dialog.text")
@@ -283,14 +274,12 @@ class CalendarRenderingService(QObject):
             btn.update(); lbl.update()
 
     def create_year_view(self) -> QWidget:
-        """Creates year view widget."""
         widget = QWidget()
         widget.setLayout(QGridLayout())
         widget.layout().setSpacing(5)
         return widget
 
     def update_year_view(self, vm: CalendarViewModel, container_widget: QWidget):
-        """Updates year view with new data."""
         layout = container_widget.layout()
 
         while item := layout.takeAt(0):
@@ -349,7 +338,6 @@ class CalendarRenderingService(QObject):
         layout.setRowStretch(row + 1, 1)
 
     def retranslate_ui(self):
-        """Retranslates UI elements."""
         weekday_keys = ["weekday_mon", "weekday_tue", "weekday_wed", "weekday_thu", "weekday_fri", "weekday_sat", "weekday_sun"]
         for i, label in enumerate(self._weekday_labels):
             if i < len(weekday_keys):

@@ -3,7 +3,7 @@ from PyQt6.QtCore import QEvent, QRect, Qt
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import QApplication, QListView
 
-from ..atomic./minimalist_scrollbar import MinimalistScrollBar
+from src.shared_toolkit.ui.widgets.atomic.minimalist_scrollbar import MinimalistScrollBar
 
 logger = logging.getLogger("ImproveImgSLI")
 

@@ -3,8 +3,8 @@ from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QPushButton
 from typing import Union, List
 
-from ...managers.theme_manager import ThemeManager
-from ..helpers.underline_painter import (
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.helpers.underline_painter import (
     UnderlineConfig,
     draw_bottom_underline,
 )

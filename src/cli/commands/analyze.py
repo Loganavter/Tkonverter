@@ -1,8 +1,4 @@
-"""
-Analyze command for CLI.
 
-Analyzes chat statistics, token counts, and provides detailed analytics.
-"""
 
 import json
 import os
@@ -14,30 +10,32 @@ from src.cli.config_loader import ConfigLoader
 from src.core.application.chat_service import ChatService, ChatLoadError
 from src.core.application.analysis_service import AnalysisService
 from src.core.application.tokenizer_service import TokenizerService, TokenizerError
-from src.core.dependency_injection import setup_container
 
 class AnalyzeCommand:
-    """Command to analyze chat statistics and token counts."""
 
-    def __init__(self):
-        """Initialize analyze command."""
-        self.formatter = OutputFormatter()
-        self.config_loader = ConfigLoader()
-        self.container = setup_container()
-        self.chat_service = self.container.get(ChatService)
-        self.analysis_service = self.container.get(AnalysisService)
-        self.tokenizer_service = self.container.get(TokenizerService)
+    def __init__(
+        self,
+        formatter: OutputFormatter | None = None,
+        config_loader: ConfigLoader | None = None,
+        chat_service: ChatService | None = None,
+        analysis_service: AnalysisService | None = None,
+        tokenizer_service: TokenizerService | None = None,
+    ):
+        """Initialize analyze command with explicit dependencies."""
+        self.formatter = formatter or OutputFormatter()
+        self.config_loader = config_loader or ConfigLoader()
+        if chat_service is None:
+            raise ValueError("AnalyzeCommand requires chat_service dependency")
+        if analysis_service is None:
+            raise ValueError("AnalyzeCommand requires analysis_service dependency")
+        if tokenizer_service is None:
+            raise ValueError("AnalyzeCommand requires tokenizer_service dependency")
+
+        self.chat_service = chat_service
+        self.analysis_service = analysis_service
+        self.tokenizer_service = tokenizer_service
 
     def execute(self, args) -> int:
-        """
-        Execute analyze command.
-
-        Args:
-            args: Parsed command line arguments
-
-        Returns:
-            int: Exit code (0 for success, 1 for error)
-        """
         try:
             input_file = args.input
 
@@ -107,15 +105,6 @@ class AnalyzeCommand:
             return 1
 
     def _load_configuration(self, args) -> Dict[str, Any]:
-        """
-        Load and merge configuration from file and CLI arguments.
-
-        Args:
-            args: Parsed command line arguments
-
-        Returns:
-            Dict[str, Any]: Final configuration
-        """
 
         args_dict = vars(args)
 
@@ -136,15 +125,6 @@ class AnalyzeCommand:
             raise
 
     def _load_tokenizer(self, model_name: str):
-        """
-        Load tokenizer for analysis.
-
-        Args:
-            model_name: Name of the tokenizer model
-
-        Returns:
-            Tokenizer object or None if failed
-        """
         try:
             self.formatter.print_info(f"Loading tokenizer: {model_name}")
 
@@ -175,16 +155,6 @@ class AnalyzeCommand:
             return None
 
     def _prepare_date_filtering(self, args, chat) -> Optional[Set[Tuple[str, str, str]]]:
-        """
-        Prepare date filtering based on CLI arguments.
-
-        Args:
-            args: Parsed command line arguments
-            chat: Chat object
-
-        Returns:
-            Optional[Set[Tuple[str, str, str]]]: Set of disabled dates or None
-        """
         disabled_dates = set()
 
         from_date = getattr(args, 'from_date', None)
@@ -231,7 +201,6 @@ class AnalyzeCommand:
         return disabled_dates if disabled_dates else None
 
     def _show_detailed_statistics(self, chat, config: Dict[str, Any], analysis_result):
-        """Show detailed analysis statistics."""
         print()
         self.formatter.print_bold("📊 Detailed Statistics")
         print("=" * 40)
@@ -286,7 +255,6 @@ class AnalyzeCommand:
                 print(f"{hour:02d}:00 - {count} messages")
 
     def _show_date_hierarchy(self, date_hierarchy: Dict[str, Dict[str, Dict[str, float]]]):
-        """Show date hierarchy statistics."""
         print()
         self.formatter.print_bold("📅 Date Hierarchy")
         print("=" * 30)
@@ -330,7 +298,6 @@ class AnalyzeCommand:
                     print(f"{month_name}: {total:,.0f}")
 
     def _get_month_name(self, month_str: str) -> str:
-        """Get month name from month string."""
         month_names = {
             "01": "January", "02": "February", "03": "March", "04": "April",
             "05": "May", "06": "June", "07": "July", "08": "August",
@@ -339,7 +306,6 @@ class AnalyzeCommand:
         return month_names.get(month_str, month_str)
 
     def _save_analysis_results(self, output_file: str, analysis_result, chat_stats: Dict[str, Any]):
-        """Save analysis results to JSON file."""
         try:
             self.formatter.print_info(f"Saving analysis results to {output_file}")
 

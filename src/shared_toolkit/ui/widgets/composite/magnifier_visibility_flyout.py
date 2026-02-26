@@ -1,8 +1,8 @@
 from PyQt6.QtCore import QPoint, QRect, Qt, QTimer
 from PyQt6.QtWidgets import QHBoxLayout, QWidget
 
-from ..atomic./numbered_toggle_icon_button import NumberedToggleIconButton
-from ./base_flyout import BaseFlyout
+from src.shared_toolkit.ui.widgets.atomic.numbered_toggle_icon_button import NumberedToggleIconButton
+from src.shared_toolkit.ui.widgets.composite.base_flyout import BaseFlyout
 
 class MagnifierVisibilityFlyout(BaseFlyout):
     def __init__(self, parent_widget: QWidget):

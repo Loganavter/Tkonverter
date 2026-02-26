@@ -9,7 +9,6 @@ from src.presenters.app_state import AppState
 logger = logging.getLogger(__name__)
 
 class ConfigPresenter(QObject):
-    """Presenter for managing configuration panel (Profile, Names, Options)."""
 
     config_changed = pyqtSignal(str, object)
     profile_auto_detected = pyqtSignal(str)
@@ -25,11 +24,9 @@ class ConfigPresenter(QObject):
         self._connect_signals()
 
     def _connect_signals(self):
-        """Connects UI signals to presenter methods."""
         self._view.config_changed.connect(self.on_config_changed)
 
     def on_config_changed(self, key: str, value: Any):
-        """Handles configuration changes."""
         old_value = self._app_state.get_config_value(key)
 
         if old_value != value:
@@ -53,7 +50,6 @@ class ConfigPresenter(QObject):
                 self._update_preview()
 
     def _update_preview(self):
-        """Updates preview when configuration changes."""
         try:
             config = self._app_state.ui_config
             raw_text, title = self._preview_service.generate_preview_text(config)
@@ -63,7 +59,6 @@ class ConfigPresenter(QObject):
             self.preview_updated.emit(error_message, "Preview Error")
 
     def handle_profile_auto_detection(self, detected_profile: str):
-        """Handles automatic profile detection."""
         current_profile = self._app_state.get_config_value("profile")
 
         if detected_profile != current_profile:
@@ -72,14 +67,11 @@ class ConfigPresenter(QObject):
             self._update_preview()
 
     def get_config(self) -> dict:
-        """Returns a copy of the current configuration."""
         return self._app_state.ui_config.copy()
 
     def get_config_value(self, key: str) -> Any:
-        """Returns a specific configuration value."""
         return self._app_state.get_config_value(key)
 
     def set_config_value(self, key: str, value: Any):
-        """Sets a specific configuration value."""
         self._app_state.set_config_value(key, value)
         self.config_changed.emit(key, value)

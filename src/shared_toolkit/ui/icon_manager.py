@@ -1,9 +1,4 @@
-"""
-Icon Manager stub for shared_toolkit compatibility.
 
-This module provides AppIcon and get_app_icon for widgets that need them.
-Projects should define their own AppIcon enum and get_app_icon function.
-"""
 
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
@@ -13,11 +8,9 @@ if TYPE_CHECKING:
     pass
 
 class _StubAppIcon(Enum):
-    """Stub AppIcon enum for compatibility."""
     pass
 
 def _stub_get_app_icon(icon) -> QIcon:
-    """Stub get_app_icon function for compatibility."""
     return QIcon()
 
 AppIcon: type = _StubAppIcon

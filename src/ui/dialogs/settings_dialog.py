@@ -1,3 +1,5 @@
+import logging
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFontDatabase, QMouseEvent
 from PyQt6.QtWidgets import (
@@ -6,15 +8,30 @@ from PyQt6.QtWidgets import (
 
 from src.resources.translations import tr
 from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from shared_toolkit.ui.widgets.atomic import FluentRadioButton
-from shared_toolkit.ui.widgets.atomic import FluentSpinBox
-from shared_toolkit.ui.widgets.atomic import FluentCheckBox
-from shared_toolkit.ui.widgets.atomic import FluentComboBox
-from shared_toolkit.ui.widgets.atomic import CustomGroupBuilder
+from src.shared_toolkit.ui.widgets.atomic import FluentRadioButton
+from src.shared_toolkit.ui.widgets.atomic import FluentSpinBox
+from src.shared_toolkit.ui.widgets.atomic import FluentCheckBox
+from src.shared_toolkit.ui.widgets.atomic import FluentComboBox
+from src.shared_toolkit.ui.widgets.atomic import CustomGroupBuilder
+
+logger = logging.getLogger(__name__)
 
 class SettingsDialog(QDialog):
 
-    def __init__(self, current_theme, current_language, parent=None, current_ui_font_mode="builtin", current_ui_font_family="", current_truncate_name_length=20, current_truncate_quote_length=50, current_auto_detect_profile=True, current_auto_recalc=False):
+    def __init__(
+        self,
+        current_theme,
+        current_language,
+        parent=None,
+        current_ui_font_mode="builtin",
+        current_ui_font_family="",
+        current_truncate_name_length=20,
+        current_truncate_quote_length=50,
+        current_auto_detect_profile=True,
+        current_auto_recalc=False,
+        tokenizer_available=False,
+        current_analysis_unit="tokens",
+    ):
         super().__init__(parent)
 
         self.setObjectName("SettingsDialog")
@@ -61,7 +78,9 @@ class SettingsDialog(QDialog):
         theme_layout.addWidget(self.combo_theme, 1)
         main_layout.addLayout(theme_layout)
 
-        font_group, font_layout, self.font_group_title = CustomGroupBuilder.create_styled_group(tr("UI Font"))
+        font_group, font_layout, self.font_group_title = CustomGroupBuilder.create_styled_group(
+            tr("settings.ui_font")
+        )
 
         self.radio_font_builtin = FluentRadioButton()
         self.radio_font_system_default = FluentRadioButton()
@@ -108,7 +127,9 @@ class SettingsDialog(QDialog):
         self.radio_font_builtin.toggled.connect(_sync_font_family_visibility)
         self.radio_font_system_default.toggled.connect(_sync_font_family_visibility)
 
-        truncation_group, truncation_layout, self.truncation_group_title = CustomGroupBuilder.create_styled_group(tr("Truncation length"))
+        truncation_group, truncation_layout, self.truncation_group_title = CustomGroupBuilder.create_styled_group(
+            tr("settings.truncation")
+        )
 
         name_length_layout = QHBoxLayout()
         self.label_name_length = QLabel()
@@ -132,6 +153,30 @@ class SettingsDialog(QDialog):
 
         main_layout.addWidget(truncation_group)
 
+        self._analysis_unit_group = None
+        self._analysis_unit_group_title = None
+        self.combo_analysis_unit = None
+        if tokenizer_available:
+            analysis_group, analysis_layout, self._analysis_unit_group_title = CustomGroupBuilder.create_styled_group(
+                tr("settings.analysis_unit_group")
+            )
+            self._analysis_unit_group = analysis_group
+            self.combo_analysis_unit = FluentComboBox()
+            self.combo_analysis_unit.addItem("", "tokens")
+            self.combo_analysis_unit.addItem("", "Characters")
+            idx = self.combo_analysis_unit.findData(
+                current_analysis_unit if current_analysis_unit in ("tokens", "Characters") else "tokens"
+            )
+            if idx >= 0:
+                self.combo_analysis_unit.setCurrentIndex(idx)
+            logger.debug(
+                "analysis_unit: tokenizer_available=True, current_analysis_unit=%r, combo_index=%s",
+                current_analysis_unit,
+                self.combo_analysis_unit.currentIndex(),
+            )
+            analysis_layout.addWidget(self.combo_analysis_unit)
+            main_layout.addWidget(analysis_group)
+
         self.checkbox_auto_detect_profile = FluentCheckBox()
         self.checkbox_auto_detect_profile.setChecked(current_auto_detect_profile)
         main_layout.addWidget(self.checkbox_auto_detect_profile)
@@ -149,7 +194,6 @@ class SettingsDialog(QDialog):
         auto_size_dialog(self, min_width=350, min_height=200)
 
     def mousePressEvent(self, event: QMouseEvent):
-        """Removes focus from input fields when clicking on empty area."""
         self.clear_input_focus()
         super().mousePressEvent(event)
 
@@ -162,7 +206,6 @@ class SettingsDialog(QDialog):
         return language
 
     def get_font_settings(self):
-        """Get font settings."""
         if self.radio_font_system_default.isChecked():
             ui_font_mode = "system_default"
         elif self.radio_font_system_custom.isChecked():
@@ -175,51 +218,62 @@ class SettingsDialog(QDialog):
         return ui_font_mode, ui_font_family
 
     def get_truncation_settings(self):
-        """Get truncation settings."""
         return {
             "truncate_name_length": self.spin_name_length.value(),
             "truncate_quote_length": self.spin_quote_length.value(),
         }
 
     def get_auto_detect_profile(self):
-        """Get auto-detect profile setting."""
         return self.checkbox_auto_detect_profile.isChecked()
 
     def get_auto_recalc(self):
-        """Get automatic recalculation setting."""
         return self.checkbox_auto_recalc.isChecked()
 
+    def get_analysis_unit(self):
+        if self.combo_analysis_unit is None:
+            logger.debug("analysis_unit: combo=None -> returning 'tokens'")
+            return "tokens"
+
+        idx = self.combo_analysis_unit.currentIndex()
+        out = "Characters" if idx == 1 else "tokens"
+        logger.debug("analysis_unit: combo_index=%s -> %r", idx, out)
+        return out
+
     def retranslate_ui(self):
-        """Updates all texts in dialog when language changes."""
-        self.setWindowTitle(tr("Settings"))
-        self.lang_label.setText(tr("Language:"))
+        self.setWindowTitle(tr("dialog.settings.title"))
+        self.lang_label.setText(tr("settings.language"))
         self.combo_lang.setItemText(0, tr("Russian"))
         self.combo_lang.setItemText(1, tr("English"))
-        self.theme_label.setText(tr("Theme:"))
-        self.combo_theme.setItemText(0, tr("Auto"))
-        self.combo_theme.setItemText(1, tr("Light"))
-        self.combo_theme.setItemText(2, tr("Dark"))
-        self.font_group_title.setText(tr("UI Font"))
-        self.radio_font_builtin.setText(tr("Built-in font"))
-        self.radio_font_system_default.setText(tr("System default"))
-        self.radio_font_system_custom.setText(tr("Custom"))
-        self.combo_font_family.setItemText(0, tr("Select font..."))
-        self.truncation_group_title.setText(tr("Truncation length"))
-        self.label_name_length.setText(tr("Nicknames:"))
-        self.label_quote_length.setText(tr("Quotes in replies:"))
-        self.checkbox_auto_detect_profile.setText(tr("Auto-detect profile"))
-        self.checkbox_auto_recalc.setText(tr("Automatic recalculation"))
-        self.ok_button.setText(tr("OK"))
-        self.cancel_button.setText(tr("Cancel"))
+        self.theme_label.setText(tr("settings.theme"))
+        self.combo_theme.setItemText(0, tr("settings.theme.auto"))
+        self.combo_theme.setItemText(1, tr("settings.theme.light"))
+        self.combo_theme.setItemText(2, tr("settings.theme.dark"))
+        self.font_group_title.setText(tr("settings.ui_font"))
+        self.radio_font_builtin.setText(tr("settings.font_builtin"))
+        self.radio_font_system_default.setText(tr("settings.font_system_default"))
+        self.radio_font_system_custom.setText(tr("settings.font_custom"))
+        self.combo_font_family.setItemText(0, tr("settings.select_font"))
+        self.truncation_group_title.setText(tr("settings.truncation"))
+        self.label_name_length.setText(tr("settings.truncation.nicknames"))
+        self.label_quote_length.setText(tr("settings.truncation.quotes"))
+        if self._analysis_unit_group is not None and self._analysis_unit_group_title is not None:
+            self._analysis_unit_group_title.setText(tr("settings.analysis_unit_group"))
+            self.combo_analysis_unit.setItemText(0, tr("settings.analysis_unit.tokens"))
+            self.combo_analysis_unit.setItemText(1, tr("settings.analysis_unit.characters"))
+        self.checkbox_auto_detect_profile.setText(tr("settings.auto_detect_profile"))
+        self.checkbox_auto_recalc.setText(tr("settings.auto_recalc"))
+        self.ok_button.setText(tr("common.ok"))
+        self.cancel_button.setText(tr("common.cancel"))
+
+    def update_language(self, _lang_code: str | None = None):
+        self.retranslate_ui()
 
     def clear_input_focus(self):
-        """Removes focus from any input field in dialog."""
         focused_widget = self.focusWidget()
         if focused_widget and isinstance(focused_widget, (QLineEdit, QWidget)) and focused_widget.inherits("QLineEdit"):
             focused_widget.clearFocus()
 
     def refresh_theme_styles(self):
-        """Forces dialog styles to update."""
 
         self.style().unpolish(self)
         self.style().polish(self)

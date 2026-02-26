@@ -1,20 +1,13 @@
-"""
-Adapters for converting domain objects to format understandable by existing formatters.
 
-This module provides backward compatibility between new domain models
-and existing formatters that expect dictionaries.
-"""
 
 from typing import Any, Dict
 from dataclasses import asdict
 from src.core.domain.models import Chat, MediaInfo, Message, Reaction, ServiceMessage, User
 
 def user_to_dict(user: User) -> Dict[str, str]:
-    """Converts User to dictionary."""
     return {"from_id": user.id, "from": user.name}
 
 def reaction_to_dict(reaction: Reaction) -> Dict[str, Any]:
-    """Converts Reaction to dictionary."""
     return {
         "emoji": reaction.emoji,
         "count": reaction.count,
@@ -22,7 +15,6 @@ def reaction_to_dict(reaction: Reaction) -> Dict[str, Any]:
     }
 
 def media_to_dict_fields(media: MediaInfo) -> Dict[str, Any]:
-    """Converts MediaInfo to message dictionary fields."""
     fields = {}
 
     if media.media_type:
@@ -44,7 +36,6 @@ def media_to_dict_fields(media: MediaInfo) -> Dict[str, Any]:
     return fields
 
 def message_to_dict(message: Message) -> Dict[str, Any]:
-    """Converts Message to dictionary format for formatters."""
     msg_dict = {
         "id": message.id,
         "type": "message",
@@ -82,6 +73,9 @@ def message_to_dict(message: Message) -> Dict[str, Any]:
         from dataclasses import asdict
         msg_dict["giveaway_results_information"] = asdict(message.giveaway_results_info)
 
+    if message.paid_media:
+        msg_dict["paid_stars_amount"] = message.paid_media.paid_stars_amount
+
     if message.raw_inline_buttons:
         msg_dict["inline_bot_buttons"] = message.raw_inline_buttons
 
@@ -91,16 +85,19 @@ def message_to_dict(message: Message) -> Dict[str, Any]:
     return msg_dict
 
 def service_message_to_dict(service_msg: ServiceMessage) -> Dict[str, Any]:
-    """Converts ServiceMessage to dictionary format for formatters."""
     msg_dict = {
         "id": service_msg.id,
         "type": "service",
         "date": service_msg.date.isoformat(),
         "action": service_msg.action,
     }
+    if service_msg.extra_data:
+        msg_dict.update(service_msg.extra_data)
 
     full_dict = asdict(service_msg)
     for key, value in full_dict.items():
+        if key == "extra_data":
+            continue
         if key not in msg_dict and value is not None:
             if isinstance(value, list) and not value:
                 continue
@@ -112,7 +109,6 @@ def service_message_to_dict(service_msg: ServiceMessage) -> Dict[str, Any]:
     return msg_dict
 
 def chat_to_dict(chat: Chat) -> Dict[str, Any]:
-    """Converts Chat to dictionary format for existing components."""
 
     messages_dicts = []
     for msg in chat.messages:
@@ -121,15 +117,12 @@ def chat_to_dict(chat: Chat) -> Dict[str, Any]:
         elif isinstance(msg, ServiceMessage):
             messages_dicts.append(service_message_to_dict(msg))
 
-    return {"name": chat.name, "type": chat.type, "messages": messages_dicts}
+    result = {"name": chat.name, "type": chat.type, "messages": messages_dicts}
+    if chat.chat_id is not None:
+        result["id"] = chat.chat_id
+    return result
 
 def create_message_map(chat: Chat) -> Dict[int, Dict[str, Any]]:
-    """
-    Creates message map for fast lookup by ID.
-
-    Returns dictionary where keys are message IDs, values are message dictionaries.
-    This is needed for reply functionality.
-    """
     message_map = {}
 
     for msg in chat.messages:
@@ -141,12 +134,6 @@ def create_message_map(chat: Chat) -> Dict[int, Dict[str, Any]]:
     return message_map
 
 def get_main_post_id(chat: Chat) -> int | None:
-    """
-    Finds main post ID in 'posts' type chat.
-
-    In 'posts' type chats, usually the first message is the main post,
-    and the rest are comments to it.
-    """
     if chat.type != "posts":
         return None
 
@@ -157,12 +144,6 @@ def get_main_post_id(chat: Chat) -> int | None:
     return None
 
 def detect_user_ids_for_personal_chat(chat: Chat) -> tuple[str | None, str | None]:
-    """
-    Determines user IDs in personal chat.
-
-    Returns tuple (my_id, partner_id), where my_id and partner_id
-    can be None if impossible to determine.
-    """
     if chat.type != "personal":
         return None, None
 

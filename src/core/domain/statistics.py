@@ -4,10 +4,6 @@ from typing import List, Dict
 
 @dataclass
 class ChatSession:
-    """
-    Сессия общения — непрерывный поток сообщений.
-    Новая сессия начинается, если пауза между сообщениями превышает порог (например, 20 минут).
-    """
     start_time: datetime
     end_time: datetime
     message_count: int
@@ -24,7 +20,6 @@ class ChatSession:
 
     @property
     def density(self) -> float:
-        """Символов в минуту"""
         if self.duration_minutes == 0:
             return 0.0
         return self.char_count / self.duration_minutes

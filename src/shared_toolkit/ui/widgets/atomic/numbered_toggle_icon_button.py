@@ -4,13 +4,13 @@ from PyQt6.QtCore import QSize, Qt, QRect
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QPushButton
 
-from .toggle_icon_button import ToggleIconButton
+from src.shared_toolkit.ui.widgets.atomic.toggle_icon_button import ToggleIconButton
 try:
-    from ...icon_manager import AppIcon, get_app_icon
+    from src.shared_toolkit.ui.icon_manager import AppIcon, get_app_icon
 except ImportError:
     AppIcon = None
     get_app_icon = None
-from ...managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class NumberedToggleIconButton(ToggleIconButton):
     def __init__(self, number: int, parent=None):

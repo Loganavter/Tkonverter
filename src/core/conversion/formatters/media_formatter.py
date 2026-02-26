@@ -22,7 +22,6 @@ from src.core.conversion.formatters.media.simple_media import (
 from src.resources.translations import tr
 
 def _is_file_included(msg: dict) -> bool:
-    """Checks if the media file was actually exported."""
 
     not_included_str = "(File not included. Change data exporting settings to download.)"
 
@@ -51,7 +50,7 @@ def format_media(msg: dict, context: ConversionContext) -> str:
     if contact_info := msg.get("contact_information"):
         return format_contact(contact_info, context)
 
-    if msg.get("place_name") and msg.get("address") and msg.get("location_information"):
+    if msg.get("place_name") and msg.get("address"):
         return format_place(msg, context)
     if venue_info := msg.get("venue"):
         return format_venue(venue_info, context)

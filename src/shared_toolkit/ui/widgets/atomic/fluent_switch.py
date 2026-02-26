@@ -12,7 +12,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
-from ...managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class FluentSwitch(QWidget):
     checkedChanged = pyqtSignal(bool)
@@ -101,12 +101,12 @@ class FluentSwitch(QWidget):
             self.update()
 
     def _initialize_translations(self):
-        from resources.translations import tr
+        from src.resources.translations import tr
         self._on_text = tr("common.switch.switch_on")
         self._off_text = tr("common.switch.switch_off")
 
     def update_translations(self):
-        from resources.translations import tr
+        from src.resources.translations import tr
         self.set_state_texts(tr("common.switch.switch_on"), tr("common.switch.switch_off"))
 
     def sizeHint(self) -> QSize:

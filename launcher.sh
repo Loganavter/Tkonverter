@@ -3,7 +3,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_MAIN="$SCRIPT_DIR/src/__main__.py"
 VENV_DIR="$SCRIPT_DIR/venv"
-REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
+REQUIREMENTS="$SCRIPT_DIR/requirements-gui.txt"
 
 source "$SCRIPT_DIR/src/shared_toolkit/scripts/common_launcher_funcs.sh"
 

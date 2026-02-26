@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QIntValidator, QFocusEvent
-from .custom_line_edit import CustomLineEdit
-from ...managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class FluentSpinBox(CustomLineEdit):
     valueChanged = pyqtSignal(int)
@@ -91,8 +91,5 @@ class FluentSpinBox(CustomLineEdit):
         super().focusInEvent(event)
 
     def _update_style(self):
-
-        text_color = self.theme_manager.get_color("dialog.text").name()
-        self.setStyleSheet(f"color: {text_color};")
         self.update()
 

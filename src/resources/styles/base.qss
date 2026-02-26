@@ -214,3 +214,85 @@ QSplitter::handle:vertical {
     height: 6px;
 }
 
+/* --- Anonymization dialog --- */
+QDialog#AnonymizationSettingsDialog QListWidget#listLinks,
+QDialog#AnonymizationSettingsDialog QListWidget#listNames {
+    outline: none;
+    background: transparent;
+}
+
+QPushButton[class="white-button"] {
+    background-color: @dialog.input.background;
+    color: @dialog.text;
+    border: 1px solid @dialog.border;
+    border-radius: 6px;
+    padding: 4px 10px;
+}
+QPushButton[class="white-button"]:hover {
+    background-color: @dialog.button.hover;
+}
+QPushButton[class="white-button"]:pressed {
+    background-color: @dialog.button.hover;
+}
+QPushButton[class="white-button"]:disabled {
+    background-color: @dialog.input.background;
+    color: @dialog.text;
+}
+
+/* --- Install dialog --- */
+QFrame#logOutputContainer {
+    border: 1px solid @dialog.border;
+    border-radius: 6px;
+    background-color: @dialog.input.background;
+}
+QFrame#logOutputContainer QTextEdit {
+    border: none;
+    background: transparent;
+}
+
+QLabel#loadedModelLabel {
+    font-style: italic;
+}
+
+/* --- Main window: token labels --- */
+QLabel#tokenCountLabel {
+    font-weight: bold;
+}
+QLabel#filteredTokenCountLabel {
+    font-weight: bold;
+    color: #888;
+}
+
+/* --- Drop zone (default state) --- */
+QLabel#dropZone {
+    border: 2px dashed #aaa;
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 14px;
+}
+
+/* --- TimeLineEdit --- */
+QWidget#TimeLineEdit QTimeEdit {
+    border: none;
+    background: transparent;
+    padding: 6px 2px;
+    font-size: 10pt;
+}
+QWidget#TimeLineEdit QTimeEdit::up-button,
+QWidget#TimeLineEdit QTimeEdit::down-button {
+    width: 0px;
+    border: none;
+}
+
+/* --- Splash screen --- */
+QLabel#splashLogoPlaceholder {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* --- Calendar dialog --- */
+QLabel#calendarDateLabel {
+    font-weight: bold;
+    padding-bottom: 5px;
+}
+

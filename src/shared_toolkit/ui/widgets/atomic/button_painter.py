@@ -1,9 +1,9 @@
 from PyQt6.QtCore import Qt, QRect, QPoint
 from PyQt6.QtGui import QPainter, QColor, QFont, QPen
-from ...managers.theme_manager import ThemeManager
-from ..helpers.underline_painter import draw_bottom_underline, UnderlineConfig
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.helpers.underline_painter import draw_bottom_underline, UnderlineConfig
 try:
-    from ...icon_manager import AppIcon, get_app_icon
+    from src.shared_toolkit.ui.icon_manager import AppIcon, get_app_icon
 except ImportError:
     AppIcon = None
     get_app_icon = None

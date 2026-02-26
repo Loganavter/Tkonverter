@@ -1,7 +1,7 @@
 from typing import Optional, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..widgets.composite.base_flyout import BaseFlyout
+    from src.shared_toolkit.ui.widgets.composite.base_flyout import BaseFlyout
 
 from PyQt6.QtCore import QObject
 

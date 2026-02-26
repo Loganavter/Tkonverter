@@ -5,9 +5,9 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ..widgets.atomic.custom_button import CustomButton
-from ...utils.paths import resource_path
-from ..managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.utils.paths import resource_path
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class BaseDialog(QDialog):
 

@@ -70,7 +70,7 @@ def format_contact_signup(msg: dict, context: ConversionContext) -> str:
 
 def format_set_ttl(msg: dict, context: ConversionContext) -> str:
     actor = truncate_name(msg.get("actor", tr("System")), context=context)
-    period = msg.get("period_seconds")
+    period = msg.get("period_seconds", msg.get("period"))
     period_str = format_ttl_period(period)
     if period:
         return f"{actor} {tr('set message auto-delete timer to')} {period_str}"
@@ -81,7 +81,10 @@ def format_group_call_scheduled(msg: dict, context: ConversionContext) -> str:
     actor = truncate_name(msg.get("actor", tr("System")), context=context)
     schedule_date = msg.get("schedule_date")
     if schedule_date:
-        dt_obj = datetime.fromisoformat(schedule_date)
+        if isinstance(schedule_date, (int, float)):
+            dt_obj = datetime.fromtimestamp(schedule_date)
+        else:
+            dt_obj = datetime.fromisoformat(str(schedule_date))
 
         month_key = f"month_gen_{dt_obj.month}"
         month_name = tr(month_key)
@@ -105,7 +108,12 @@ def format_gift_code(msg: dict, context: ConversionContext) -> str:
     return tr("won premium for {months} {months_text}").format(months=months, months_text=months_text)
 
 def format_custom_action(msg: dict, context: ConversionContext) -> str:
-    return msg.get("text", tr("Service message"))
+    return (
+        msg.get("title")
+        or msg.get("information_text")
+        or msg.get("text")
+        or tr("Service message")
+    )
 
 def format_star_gift(msg: dict, context: ConversionContext) -> str:
     actor = truncate_name(msg.get("actor", tr("System")), context=context)

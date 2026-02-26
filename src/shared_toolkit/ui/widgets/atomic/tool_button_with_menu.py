@@ -2,10 +2,10 @@ from PyQt6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QRect, Qt, py
 from PyQt6.QtGui import QAction, QGuiApplication, QIcon, QPainter, QBrush, QPen, QColor
 from PyQt6.QtWidgets import QWidget, QGraphicsDropShadowEffect, QVBoxLayout
 
-from ...core.constants import AppConstants
-from ...managers.theme_manager import ThemeManager
+from src.shared_toolkit.core.constants import AppConstants
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 try:
-    from ...icon_manager import AppIcon, get_app_icon
+    from src.shared_toolkit.ui.icon_manager import AppIcon, get_app_icon
 except ImportError:
     AppIcon = None
     get_app_icon = None

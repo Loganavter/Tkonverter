@@ -22,9 +22,9 @@ from PyQt6.QtWidgets import (
 )
 
 from core.constants import AppConstants
-from resources.translations import tr
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from shared_toolkit.ui.widgets.atomic import (
+from src.resources.translations import tr
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic import (
     FluentRadioButton,
     FluentSlider,
     FluentSwitch,

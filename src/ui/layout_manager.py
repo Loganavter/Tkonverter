@@ -1,11 +1,4 @@
-"""
-Layout manager for automatic window size calculation.
 
-Provides adaptive layout functionality including:
-- Dynamic minimum window size calculation
-- Interface language adaptation
-- Content overflow prevention
-"""
 
 from typing import Dict, Optional
 
@@ -16,7 +9,6 @@ from PyQt6.QtWidgets import QApplication
 from src.resources.translations import tr
 
 class LayoutManager:
-    """Layout manager for automatic size calculation."""
 
     MIN_WINDOW_WIDTH = 800
     MIN_WINDOW_HEIGHT = 500
@@ -36,17 +28,16 @@ class LayoutManager:
     RIGHT_COLUMN_MIN = 390
 
     def __init__(self, main_window):
-        """Initialize layout manager."""
         self.main_window = main_window
         self._cached_sizes: Dict[str, QSize] = {}
         self._size_timer = QTimer()
         self._size_timer.setSingleShot(True)
         self._size_timer.timeout.connect(self._recalculate_window_size)
+        self._allow_size_recalc = False
 
         self._calculated_preview_height = self.PREVIEW_MIN_HEIGHT
 
     def calculate_minimum_window_size(self) -> QSize:
-        """Calculates minimum window size based on content."""
         try:
             left_width = self.calculate_left_column_width()
             middle_width = self.calculate_middle_column_width()
@@ -75,7 +66,6 @@ class LayoutManager:
             return QSize(self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT)
 
     def calculate_left_column_width(self) -> float:
-        """Calculates minimum width of left column (Profile group)."""
         try:
             ui = self.main_window.ui
             width = self.LEFT_COLUMN_MIN
@@ -105,7 +95,6 @@ class LayoutManager:
             return self.LEFT_COLUMN_MIN
 
     def calculate_middle_column_width(self) -> float:
-        """Calculates minimum width of middle column (Options + AI)."""
         try:
             ui = self.main_window.ui
             width = self.MIDDLE_COLUMN_MIN
@@ -135,7 +124,6 @@ class LayoutManager:
             return self.MIDDLE_COLUMN_MIN
 
     def calculate_right_column_width(self) -> float:
-        """Calculates minimum width of right column (Preview + Terminal)."""
         try:
             width = self.RIGHT_COLUMN_MIN
 
@@ -157,7 +145,6 @@ class LayoutManager:
             return self.RIGHT_COLUMN_MIN
 
     def _calculate_window_height(self) -> float:
-        """Calculates minimum window height."""
         try:
             group_title_height = 20
             control_height = 25
@@ -189,7 +176,6 @@ class LayoutManager:
             return self.MIN_WINDOW_HEIGHT
 
     def _calculate_group_width(self, title: str, content_labels: list) -> float:
-        """Calculates minimum width of a group."""
         try:
             font_metrics = QFontMetrics(QApplication.instance().font())
 
@@ -208,7 +194,6 @@ class LayoutManager:
             return 200
 
     def _calculate_buttons_width(self, buttons: list) -> float:
-        """Calculates minimum width for buttons."""
         try:
             total_width = 0
             if not buttons:
@@ -224,11 +209,12 @@ class LayoutManager:
             return 200
 
     def schedule_size_recalculation(self, delay_ms: int = 100):
-        """Schedules window size recalculation with delay."""
         self._size_timer.start(delay_ms)
 
+    def set_window_visible(self):
+        self._allow_size_recalc = True
+
     def _recalculate_window_size(self):
-        """Recalculates and applies new window sizes."""
         try:
             new_min_size = self.calculate_minimum_window_size()
 
@@ -249,24 +235,21 @@ class LayoutManager:
             pass
 
     def handle_language_change(self):
-        """Handles language change and recalculates sizes."""
         self._cached_sizes.clear()
         self.schedule_size_recalculation(200)
 
     def handle_visibility_change(self, widget_name: str, is_visible: bool):
-        """Handles widget visibility changes."""
+        if not self._allow_size_recalc:
+            return
         self.schedule_size_recalculation(50)
 
     def get_cached_size(self, key: str) -> Optional[QSize]:
-        """Gets cached size."""
         return self._cached_sizes.get(key)
 
     def cache_size(self, key: str, size: QSize):
-        """Caches size."""
         self._cached_sizes[key] = size
 
     def save_splitter_sizes(self):
-        """Saves current splitter sizes to settings."""
         try:
             ui = self.main_window.ui
 
@@ -283,7 +266,6 @@ class LayoutManager:
             pass
 
     def load_splitter_sizes(self):
-        """Loads saved splitter sizes from settings."""
         try:
             ui = self.main_window.ui
 
@@ -305,10 +287,6 @@ class LayoutManager:
             pass
 
     def calculate_and_set_preview_height(self, html_content: str):
-        """
-        Calculates and saves preview widget height based on HTML content.
-        Теперь не используется, так как превью имеет фиксированную высоту.
-        """
 
         pass
 

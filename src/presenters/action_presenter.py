@@ -1,26 +1,31 @@
+import logging
 import re
 from typing import Optional, Any
 
 from PyQt6.QtCore import QObject, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
-from shared_toolkit.utils.file_utils import get_unique_filepath
+from src.shared_toolkit.utils.file_utils import get_unique_filepath
 from src.core.application.conversion_service import ConversionService
 from src.core.application.tokenizer_service import TokenizerService
+from src.core.settings_port import SettingsPort
 from src.core.domain.models import Chat
 from src.presenters.app_state import AppState
 from src.presenters.workers import ConversionWorker, TokenizerLoadWorker, AIInstallerWorker
 from src.resources.translations import tr
 
+logger = logging.getLogger(__name__)
+
 class ActionPresenter(QObject):
-    """Presenter for managing action buttons (Save, Settings, Install, Help)."""
 
     save_completed = pyqtSignal(bool, str)
     language_changed = pyqtSignal()
     tokenizer_changed = pyqtSignal()
+    analysis_unit_changed = pyqtSignal()
 
     def __init__(self, view, app_state: AppState, conversion_service: ConversionService,
-                 tokenizer_service: TokenizerService, settings_manager, theme_manager, app_instance):
+                 tokenizer_service: TokenizerService, settings_manager: SettingsPort, theme_manager, app_instance,
+                 font_manager):
         super().__init__()
         self._view = view
         self._app_state = app_state
@@ -29,6 +34,7 @@ class ActionPresenter(QObject):
         self._settings_manager = settings_manager
         self._theme_manager = theme_manager
         self._app = app_instance
+        self._font_manager = font_manager
 
         self._threadpool = QThreadPool()
         self._current_workers = []
@@ -43,15 +49,29 @@ class ActionPresenter(QObject):
         self._connect_signals()
 
     def _connect_signals(self):
-        """Connects UI signals to presenter methods."""
         self._view.save_button_clicked.connect(self.on_save_clicked)
         self._view.quick_save_button_clicked.connect(self.on_quick_save_clicked)
         self._view.settings_button_clicked.connect(self.on_settings_clicked)
         self._view.install_manager_button_clicked.connect(self.on_install_manager_clicked)
         self._view.help_button_clicked.connect(self.on_help_clicked)
 
+    def apply_theme_to_open_dialogs(self, new_palette):
+        for dialog_attr in (
+            "_settings_dialog",
+            "_export_dialog",
+            "_install_dialog",
+            "_help_dialog",
+        ):
+            dialog = getattr(self, dialog_attr, None)
+            if not dialog:
+                continue
+            try:
+                if dialog.isVisible():
+                    self._theme_manager.apply_theme_to_dialog(dialog)
+            except RuntimeError:
+                setattr(self, dialog_attr, None)
+
     def on_save_clicked(self):
-        """Handles save button click."""
         if self._app_state.is_processing:
             return
 
@@ -62,9 +82,6 @@ class ActionPresenter(QObject):
         chat_name = self._app_state.get_chat_name()
         sanitized_name = re.sub(r'[\\/*?:"<>|]', "_", chat_name)[:80]
 
-        from src.ui.dialogs.export_dialog import ExportDialog
-        from shared_toolkit.utils.file_utils import get_unique_filepath
-
         if self._export_dialog is not None:
             try:
                 self._view.bring_dialog_to_front(self._export_dialog, "export")
@@ -73,16 +90,15 @@ class ActionPresenter(QObject):
                 self._export_dialog = None
 
         try:
-            self._export_dialog = ExportDialog(
-                settings_manager=self._settings_manager,
-                parent=self._view,
+            self._export_dialog = self._view.create_export_dialog(
                 suggested_filename=sanitized_name,
                 get_unique_path_func=get_unique_filepath,
             )
 
-            self._theme_manager.apply_theme_to_dialog(self._export_dialog)
-
-            self.language_changed.connect(self._export_dialog.retranslate_ui)
+            if hasattr(self._export_dialog, "update_language"):
+                self.language_changed.connect(self._export_dialog.update_language)
+            else:
+                self.language_changed.connect(self._export_dialog.retranslate_ui)
             self._export_dialog.accepted.connect(self._handle_export_accepted)
             self._export_dialog.destroyed.connect(self._on_dialog_destroyed)
             self._export_dialog.show()
@@ -91,7 +107,6 @@ class ActionPresenter(QObject):
             pass
 
     def on_quick_save_clicked(self):
-        """Handles quick save button click."""
         import logging
         logger = logging.getLogger("Tkonverter")
         logger.info("Quick save button clicked")
@@ -106,7 +121,7 @@ class ActionPresenter(QObject):
             return
 
         import os
-        default_dir = self._settings_manager.settings.value("export_default_dir", "", type=str)
+        default_dir = self._settings_manager.get_export_default_dir()
         if not default_dir:
 
             default_dir = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -118,14 +133,13 @@ class ActionPresenter(QObject):
         sanitized_name = re.sub(r'[\\/*?:"<>|]', "_", chat_name)[:80]
         logger.info(f"Chat name: {chat_name}, sanitized: {sanitized_name}")
 
-        from shared_toolkit.utils.file_utils import get_unique_filepath
+        from src.shared_toolkit.utils.file_utils import get_unique_filepath
         final_path = get_unique_filepath(default_dir, sanitized_name, ".txt")
         logger.info(f"Final export path: {final_path}")
 
         self._perform_export(final_path)
 
     def _get_config_with_anonymization(self) -> dict:
-        """Подготавливает config с настройками анонимизации."""
         config = self._app_state.ui_config.copy()
         anonymization_settings = self._settings_manager.load_anonymization_settings()
         if anonymization_settings:
@@ -133,7 +147,6 @@ class ActionPresenter(QObject):
         return config
 
     def _perform_export(self, final_path: str):
-        """Performs export without dialog."""
         import logging
         logger = logging.getLogger("Tkonverter")
 
@@ -147,14 +160,15 @@ class ActionPresenter(QObject):
             final_path,
             self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set(),
         )
-        worker.signals.finished.connect(self._on_save_finished)
+        worker.signals.finished.connect(
+            lambda s, p, r, w=worker: self._on_save_finished(s, p, r, w)
+        )
 
         self._current_workers.append(worker)
         self._threadpool.start(worker)
         logger.info("Export worker started")
 
     def _handle_export_accepted(self):
-        """Handles export confirmation."""
         if not self._export_dialog:
             return
 
@@ -162,9 +176,9 @@ class ActionPresenter(QObject):
         output_dir, file_name = options["output_dir"], options["file_name"]
         use_default = options["use_default_dir"]
 
-        self._settings_manager.settings.setValue("export_use_default_dir", use_default)
-        if use_default:
-            self._settings_manager.settings.setValue("export_default_dir", output_dir)
+        self._settings_manager.save_export_default_dir(
+            use_default_dir=use_default, default_dir=output_dir
+        )
 
         final_path = get_unique_filepath(output_dir, file_name, ".txt")
 
@@ -180,31 +194,38 @@ class ActionPresenter(QObject):
             final_path,
             self._app_state.get_disabled_nodes_from_tree(self._app_state.analysis_tree) if self._app_state.analysis_tree else set(),
         )
-        worker.signals.finished.connect(self._on_save_finished)
+        worker.signals.finished.connect(
+            lambda s, p, r, w=worker: self._on_save_finished(s, p, r, w)
+        )
 
         self._current_workers.append(worker)
         self._threadpool.start(worker)
 
-    def _on_save_finished(self, success: bool, path_or_error: str, result: Optional[Any]):
-        """Handles save completion."""
-        self.set_processing_state_in_view(False)
+    def _on_save_finished(
+        self, success: bool, path_or_error: str, result: Optional[Any], worker=None
+    ):
+        try:
+            self.set_processing_state_in_view(False)
 
-        if success:
-            self._view.show_status(
-                message_key="File saved: {path}",
-                format_args={"path": path_or_error},
-            )
-        else:
-            self._view.show_status(
-                is_error=True,
-                message_key="Error saving file: {error}",
-                format_args={"error": path_or_error},
-            )
+            if success:
+                self._view.show_status(
+                    message_key="File saved: {path}",
+                    format_args={"path": path_or_error},
+                )
+            else:
+                self._view.show_status(
+                    is_error=True,
+                    message_key="Error saving file: {error}",
+                    format_args={"error": path_or_error},
+                )
+        finally:
+            if worker is not None:
+                try:
+                    self._current_workers.remove(worker)
+                except ValueError:
+                    pass
 
     def on_settings_clicked(self):
-        """Handles settings button click."""
-        from src.ui.dialogs.settings_dialog import SettingsDialog
-
         if self._settings_dialog is not None:
             try:
                 if self._settings_dialog.isVisible():
@@ -219,7 +240,7 @@ class ActionPresenter(QObject):
             try:
                 ui_settings = self._settings_manager.load_ui_settings()
 
-                self._settings_dialog = SettingsDialog(
+                self._settings_dialog = self._view.create_settings_dialog(
                     current_theme=self._theme_manager.get_current_theme(),
                     current_language=self._settings_manager.load_language(),
                     current_ui_font_mode=self._settings_manager.load_ui_font_mode(),
@@ -228,12 +249,14 @@ class ActionPresenter(QObject):
                     current_truncate_quote_length=ui_settings.get("truncate_quote_length", 50),
                     current_auto_detect_profile=ui_settings.get("auto_detect_profile", True),
                     current_auto_recalc=ui_settings.get("auto_recalc", False),
-                    parent=self._view,
+                    tokenizer_available=self._tokenizer_service.is_transformers_available(),
+                    current_analysis_unit=self._app_state.get_config_value("analysis_unit", "tokens"),
                 )
 
-                self._theme_manager.apply_theme_to_dialog(self._settings_dialog)
-
-                self.language_changed.connect(self._settings_dialog.retranslate_ui)
+                if hasattr(self._settings_dialog, "update_language"):
+                    self.language_changed.connect(self._settings_dialog.update_language)
+                else:
+                    self.language_changed.connect(self._settings_dialog.retranslate_ui)
                 self._settings_dialog.accepted.connect(self._apply_settings_from_dialog)
                 self._settings_dialog.destroyed.connect(self._on_dialog_destroyed)
 
@@ -244,7 +267,6 @@ class ActionPresenter(QObject):
                 self._settings_dialog = None
 
     def _apply_settings_from_dialog(self):
-        """Applies settings from dialog."""
         if not self._settings_dialog:
             return
 
@@ -255,7 +277,7 @@ class ActionPresenter(QObject):
         current_lang = self._settings_manager.load_language()
         if new_lang != current_lang:
             self._settings_manager.save_language(new_lang)
-            from resources.translations import set_language
+            from src.resources.translations import set_language
             set_language(new_lang)
             self.language_changed.emit()
 
@@ -269,9 +291,7 @@ class ActionPresenter(QObject):
 
         if new_font_mode != current_font_mode or new_font_family != current_font_family:
             self._settings_manager.save_ui_font_settings(new_font_mode, new_font_family)
-            from shared_toolkit.ui.managers.font_manager import FontManager
-            font_manager = FontManager.get_instance()
-            font_manager.set_font(new_font_mode, new_font_family)
+            self._font_manager.set_font(new_font_mode, new_font_family)
 
         new_trunc_settings = self._settings_dialog.get_truncation_settings()
         new_auto_detect_profile = self._settings_dialog.get_auto_detect_profile()
@@ -293,6 +313,19 @@ class ActionPresenter(QObject):
             self._app_state.set_config_value("auto_recalc", new_auto_recalc)
             settings_changed = True
 
+        new_analysis_unit = self._settings_dialog.get_analysis_unit()
+        current_analysis_unit = current_ui_settings.get("analysis_unit", "tokens")
+        logger.debug(
+            "analysis_unit: from_dialog=%r, current_ui_settings=%r, setting app_state and saving",
+            new_analysis_unit,
+            current_analysis_unit,
+        )
+        current_ui_settings["analysis_unit"] = new_analysis_unit
+        self._app_state.set_config_value("analysis_unit", new_analysis_unit)
+        settings_changed = True
+        if current_analysis_unit != new_analysis_unit:
+            self.analysis_unit_changed.emit()
+
         if settings_changed:
             self._settings_manager.save_ui_settings(current_ui_settings)
 
@@ -308,9 +341,6 @@ class ActionPresenter(QObject):
             self.language_changed.emit()
 
     def on_install_manager_clicked(self):
-        """Handles install manager button click."""
-        from src.ui.dialogs.install_dialog import InstallDialog
-
         if self._install_dialog is not None:
             try:
                 self._view.bring_dialog_to_front(self._install_dialog, "install_manager")
@@ -332,15 +362,15 @@ class ActionPresenter(QObject):
             cache_info = self._tokenizer_service.check_model_cache(current_model)
             model_in_cache = cache_info.get("available", False)
 
-        self._install_dialog = InstallDialog(
+        self._install_dialog = self._view.create_install_dialog(
             is_installed=is_installed,
             is_loaded=is_loaded,
             loaded_model_name=loaded_model_name,
             settings_manager=self._settings_manager,
             settings=self._settings_manager.load_ai_settings(),
             model_in_cache=model_in_cache,
+            tokenizer_service=self._tokenizer_service,
             theme_manager=self._theme_manager,
-            parent=self._view,
         )
 
         self._install_dialog.install_triggered.connect(self._handle_install_transformers)
@@ -353,11 +383,9 @@ class ActionPresenter(QObject):
         self._install_dialog.show()
 
     def _handle_install_transformers(self):
-        """Handles transformers library installation."""
         self._run_installer_worker("install_deps")
 
     def _handle_remove_model(self):
-        """Handles removing model from cache."""
         settings = self._settings_manager.load_ai_settings()
         model_name = settings.get(
             "tokenizer_model", self._settings_manager.get_default_tokenizer_model()
@@ -366,12 +394,14 @@ class ActionPresenter(QObject):
             self._run_installer_worker("remove_model", model_name=model_name)
 
     def _handle_ai_model_load(self, model_name: str):
-        """Handles AI model loading."""
         if self._install_dialog:
             self._install_dialog.append_log(tr("Downloading tokenizer model '{model}'...").format(model=model_name))
             self._install_dialog.set_actions_enabled(False)
 
-        worker = TokenizerLoadWorker(self._tokenizer_service, model_name)
+        hf_token = ""
+        if self._install_dialog:
+            hf_token = self._install_dialog.get_settings().get("hf_token", "") or ""
+        worker = TokenizerLoadWorker(self._tokenizer_service, model_name, hf_token=hf_token)
         worker.signals.progress.connect(
             lambda msg: self._install_dialog.append_log(f'<span class="info">{msg}</span>') if self._install_dialog else None
         )
@@ -379,7 +409,6 @@ class ActionPresenter(QObject):
         self._threadpool.start(worker)
 
     def _on_tokenizer_load_finished(self, success: bool, message: str, tokenizer: Optional[Any]):
-        """Handles tokenizer loading completion."""
         model_name = self._tokenizer_service.get_current_model_name()
         if success and tokenizer:
             self._app_state.set_tokenizer(tokenizer, model_name)
@@ -404,7 +433,6 @@ class ActionPresenter(QObject):
             self._install_dialog.set_actions_enabled(True)
 
     def _run_installer_worker(self, action: str, model_name: str | None = None):
-        """Starts worker for installing/removing AI components."""
         if not self._install_dialog or self._installer_worker is not None:
             return
 
@@ -419,7 +447,6 @@ class ActionPresenter(QObject):
         QThreadPool.globalInstance().start(self._installer_worker)
 
     def _on_install_progress(self, message: str):
-        """Handles installation progress."""
         if self._install_dialog and not self._install_dialog.isHidden():
             try:
                 if any(keyword in message.lower() for keyword in ["error", "failed", "exception"]):
@@ -433,7 +460,6 @@ class ActionPresenter(QObject):
                 pass
 
     def _on_install_finished(self, success: bool, message: str):
-        """Handles installation completion."""
         self._view.show_status(message_key="Operation completed.")
 
         if self._install_dialog and not self._install_dialog.isHidden():
@@ -490,7 +516,6 @@ class ActionPresenter(QObject):
         self._installer_worker = None
 
     def _show_restart_notification(self):
-        """Shows restart notification."""
         self._view.show_message_box(
             tr("Restart Required"),
             tr("Library installation completed successfully!") + "\n" + tr("Please restart the application for changes to take effect."),
@@ -498,7 +523,6 @@ class ActionPresenter(QObject):
         )
 
     def _handle_install_manager_accepted(self):
-        """Handles install manager dialog confirmation."""
         if not self._install_dialog:
             return
 
@@ -506,9 +530,6 @@ class ActionPresenter(QObject):
         self._settings_manager.save_ai_settings(new_settings)
 
     def on_help_clicked(self):
-        """Handles help button click."""
-        from shared_toolkit.ui.dialogs.help_dialog import HelpDialog
-
         if self._help_dialog is not None:
             try:
                 self._view.bring_dialog_to_front(self._help_dialog, "help")
@@ -526,8 +547,11 @@ class ActionPresenter(QObject):
                     ("help_ai", "ai"),
                     ("help_export", "export"),
                 ]
-                self._help_dialog = HelpDialog(sections, self._settings_manager.load_language(), "Tkonverter", parent=self._view)
-                self._theme_manager.apply_theme_to_dialog(self._help_dialog)
+                self._help_dialog = self._view.create_help_dialog(
+                    sections=sections,
+                    current_language=self._settings_manager.load_language(),
+                    app_name="Tkonverter",
+                )
                 self.language_changed.connect(self._help_dialog.update_language)
                 self._help_dialog.destroyed.connect(self._on_dialog_destroyed)
             except Exception as e:
@@ -546,14 +570,25 @@ class ActionPresenter(QObject):
         self._help_dialog.show()
 
     def _on_dialog_destroyed(self):
-        """Handles dialog destruction."""
         sender = self.sender()
 
         if sender == self._settings_dialog:
-            self.language_changed.disconnect(self._settings_dialog.retranslate_ui)
+            try:
+                if hasattr(self._settings_dialog, "update_language"):
+                    self.language_changed.disconnect(self._settings_dialog.update_language)
+                else:
+                    self.language_changed.disconnect(self._settings_dialog.retranslate_ui)
+            except (TypeError, RuntimeError):
+                pass
             self._settings_dialog = None
         elif sender == self._export_dialog:
-            self.language_changed.disconnect(self._export_dialog.retranslate_ui)
+            try:
+                if hasattr(self._export_dialog, "update_language"):
+                    self.language_changed.disconnect(self._export_dialog.update_language)
+                else:
+                    self.language_changed.disconnect(self._export_dialog.retranslate_ui)
+            except (TypeError, RuntimeError):
+                pass
             self._export_dialog = None
         elif sender == self._install_dialog:
             try:
@@ -570,7 +605,6 @@ class ActionPresenter(QObject):
             self._help_dialog = None
 
     def set_processing_state_in_view(self, is_processing: bool, message: str = "", message_key: str = None, format_args: dict = None):
-        """Proxy method for calling set_processing_state in view."""
         if message_key:
             translated_message = tr(message_key)
             self._app_state.set_processing_state(is_processing, translated_message)

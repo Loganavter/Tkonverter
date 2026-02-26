@@ -7,18 +7,18 @@ from PyQt6.QtWidgets import (
 )
 
 from events.drag_drop_handler import DragAndDropService
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from ./unified_flyout.model import (
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.composite.unified_flyout.model import (
     IndexRole,
     IsCurrentRole,
     NameRole,
     PathRole,
     RatingRole,
 )
-from ..atomic./tooltips import PathTooltip
-from ...gesture_resolver import RatingGestureTransaction
+from src.shared_toolkit.ui.widgets.atomic.tooltips import PathTooltip
+from src.shared_toolkit.ui.gesture_resolver import RatingGestureTransaction
 try:
-    from ...icon_manager import AppIcon, get_app_icon
+    from src.shared_toolkit.ui.icon_manager import AppIcon, get_app_icon
 except ImportError:
     AppIcon = None
     get_app_icon = None

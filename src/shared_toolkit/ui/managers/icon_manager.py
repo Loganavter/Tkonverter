@@ -4,7 +4,7 @@ from functools import lru_cache
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
 
-from .theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 @lru_cache(maxsize=128)
 def get_themed_icon(path_to_icon: str, is_dark: bool) -> QIcon:

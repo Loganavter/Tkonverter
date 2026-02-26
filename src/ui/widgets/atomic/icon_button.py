@@ -2,7 +2,7 @@ from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from src.ui.icon_manager import AppIcon, get_app_icon
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class IconButton(QWidget):
     clicked = pyqtSignal()

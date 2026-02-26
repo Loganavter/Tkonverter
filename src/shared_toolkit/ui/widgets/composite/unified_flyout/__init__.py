@@ -10,9 +10,9 @@ from PyQt6.QtWidgets import QApplication, QGraphicsDropShadowEffect, QWidget
 
 from core.constants import AppConstants
 from events.drag_drop_handler import DragAndDropService
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from ..atomic./tooltips import PathTooltip
-from ./unified_flyout.panel import _ListOwnerProxy, _Panel
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.tooltips import PathTooltip
+from src.shared_toolkit.ui.widgets.composite.unified_flyout.panel import _ListOwnerProxy, _Panel
 
 if TYPE_CHECKING:
     from core.bootstrap import ApplicationContext

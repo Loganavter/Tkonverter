@@ -11,13 +11,13 @@ from PyQt6.QtWidgets import (
 
 from src.resources.translations import tr
 from src.ui.icon_manager import AppIcon, get_app_icon
-from shared_toolkit.ui.widgets.atomic.text_labels import AdaptiveLabel, CompactLabel
+from src.shared_toolkit.ui.widgets.atomic.text_labels import AdaptiveLabel, CompactLabel
 from src.ui.widgets.atomic.drop_zone_label import DropZoneLabel
-from shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
-from shared_toolkit.ui.widgets.atomic.custom_group_widget import CustomGroupBuilder
-from shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from shared_toolkit.ui.widgets.atomic.fluent_radio import FluentRadioButton
-from shared_toolkit.ui.widgets.atomic.fluent_switch import FluentSwitch
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.ui.widgets.atomic.custom_group_widget import CustomGroupBuilder
+from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from src.shared_toolkit.ui.widgets.atomic.fluent_radio import FluentRadioButton
+from src.shared_toolkit.ui.widgets.atomic.fluent_switch import FluentSwitch
 from src.ui.widgets.atomic.time_line_edit import TimeLineEdit
 
 class Ui_MainWindow(object):
@@ -140,6 +140,11 @@ class Ui_MainWindow(object):
         self.switch_show_service_notifications = FluentSwitch()
         self.switch_show_service_notifications.setChecked(True)
 
+        h_layout_anonymization = QHBoxLayout()
+        self.label_anonymization = CompactLabel(tr("Anonymization"))
+        self.switch_anonymization = FluentSwitch()
+        self.switch_anonymization.setChecked(False)
+
         h_layout_time.addWidget(self.label_show_time)
         h_layout_time.addStretch()
         h_layout_time.addWidget(self.switch_show_time)
@@ -192,6 +197,10 @@ class Ui_MainWindow(object):
         h_layout_service.addStretch()
         h_layout_service.addWidget(self.switch_show_service_notifications)
 
+        h_layout_anonymization.addWidget(self.label_anonymization)
+        h_layout_anonymization.addStretch()
+        h_layout_anonymization.addWidget(self.switch_anonymization)
+
         options_layout.addLayout(h_layout_time)
         options_layout.addLayout(h_layout_reactions)
         options_layout.addLayout(h_layout_react_authors)
@@ -201,6 +210,7 @@ class Ui_MainWindow(object):
         options_layout.addWidget(self.links_container)
         options_layout.addLayout(h_layout_tech_info)
         options_layout.addLayout(h_layout_service)
+        options_layout.addLayout(h_layout_anonymization)
 
         middle_layout.addWidget(self.options_group)
 
@@ -215,9 +225,9 @@ class Ui_MainWindow(object):
         token_values_layout = QVBoxLayout()
         token_values_layout.setSpacing(0)
         self.token_count_label = AdaptiveLabel(tr("N/A"))
-        self.token_count_label.setStyleSheet("font-weight: bold;")
+        self.token_count_label.setObjectName("tokenCountLabel")
         self.filtered_token_count_label = AdaptiveLabel("")
-        self.filtered_token_count_label.setStyleSheet("font-weight: bold; color: #888;")
+        self.filtered_token_count_label.setObjectName("filteredTokenCountLabel")
         token_values_layout.addWidget(self.token_count_label)
         token_values_layout.addWidget(self.filtered_token_count_label)
         tokens_layout.addWidget(self.tokens_label)
@@ -231,13 +241,10 @@ class Ui_MainWindow(object):
         self.calendar_button.setToolTip(tr("Calendar View"))
         self.diagram_button = CustomButton(get_app_icon(AppIcon.CHART), "")
         self.diagram_button.setToolTip(tr("Token Analysis"))
-        self.statistics_button = CustomButton(get_app_icon(AppIcon.CHART), "")
-        self.statistics_button.setToolTip(tr("Communication Analysis"))
         ai_buttons_layout.addStretch()
         ai_buttons_layout.addWidget(self.recalculate_button)
         ai_buttons_layout.addWidget(self.calendar_button)
         ai_buttons_layout.addWidget(self.diagram_button)
-        ai_buttons_layout.addWidget(self.statistics_button)
         ai_layout.addLayout(ai_buttons_layout)
 
         middle_layout.addWidget(self.ai_group)
@@ -264,10 +271,8 @@ class Ui_MainWindow(object):
         left_part_layout.addWidget(self.columns_splitter)
 
         self.drop_zone = DropZoneLabel(tr("Drag and drop result.json file here"))
+        self.drop_zone.setObjectName("dropZone")
         self.drop_zone.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.drop_zone.setStyleSheet(
-            "border: 2px dashed #aaa; border-radius: 10px; padding: 15px; font-size: 14px;"
-        )
         self.drop_zone.setMinimumHeight(80)
         self.drop_zone.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
@@ -372,17 +377,14 @@ class Ui_MainWindow(object):
         main_layout.addWidget(self.main_splitter)
 
     def set_preview_title(self, title: str):
-        """Sets preview title and updates sizes."""
         if self.preview_group_title_label:
             self.preview_group_title_label.setText(title)
 
     def update_group_titles_on_language_change(self):
-        """Updates sizes of all groups when language changes."""
 
         pass
 
     def retranslate_ui(self):
-        """Updates all translatable strings in UI."""
 
         if hasattr(self, "profile_group_title") and self.profile_group_title:
             self.profile_group_title.setText(tr("Profile"))
@@ -424,6 +426,8 @@ class Ui_MainWindow(object):
             self.label_show_service_notifications.setText(
                 tr("Show service notifications")
             )
+        if hasattr(self, "label_anonymization"):
+            self.label_anonymization.setText(tr("Anonymization"))
         if hasattr(self, "drop_zone"):
             self.drop_zone.setText(tr("Drag and drop result.json file here"))
 
@@ -447,8 +451,6 @@ class Ui_MainWindow(object):
             self.calendar_button.setToolTip(tr("Calendar View"))
         if hasattr(self, "diagram_button"):
             self.diagram_button.setToolTip(tr("Token Analysis"))
-        if hasattr(self, "statistics_button"):
-            self.statistics_button.setToolTip(tr("Communication Analysis"))
         if hasattr(self, "install_manager_button"):
             self.install_manager_button.setToolTip(tr("Installation Manager"))
         if hasattr(self, "settings_button"):
@@ -457,13 +459,10 @@ class Ui_MainWindow(object):
         self.update_group_titles_on_language_change()
 
     def refresh_icons_for_current_theme(self):
-        """Обновляет иконки всех кнопок для текущей темы."""
         if hasattr(self, "calendar_button"):
             self.calendar_button.setIcon(get_app_icon(AppIcon.CALENDAR))
         if hasattr(self, "diagram_button"):
             self.diagram_button.setIcon(get_app_icon(AppIcon.CHART))
-        if hasattr(self, "statistics_button"):
-            self.statistics_button.setIcon(get_app_icon(AppIcon.CHART))
         if hasattr(self, "install_manager_button"):
             self.install_manager_button.setIcon(get_app_icon(AppIcon.DOWNLOAD))
         if hasattr(self, "settings_button"):

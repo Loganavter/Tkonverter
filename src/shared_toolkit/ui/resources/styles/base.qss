@@ -182,6 +182,12 @@ QWidget#FlyoutWidget QScrollArea, QWidget#FlyoutWidget QScrollArea > QWidget > Q
     background-color: transparent; border: none;
 }
 
+QWidget#FlyoutContainer {
+    background-color: @flyout.background;
+    border: 1px solid @flyout.border;
+    border-radius: 8px;
+}
+
 /* --- Стили для RatingListItem --- */
 RatingListItem > QLabel {
     background: transparent;
@@ -228,6 +234,8 @@ QLineEdit[custom-line-edit="true"] {
     border-radius: 8px;
     padding: 6px 10px;
     outline: none;
+    selection-background-color: @accent;
+    selection-color: white;
 }
 QLineEdit[custom-line-edit="true"]:focus {
     border: none !important;
@@ -597,6 +605,7 @@ FluentSpinBox {
     background-color: @dialog.input.background;
     border: 1px solid @input.border.thin;
     border-radius: 2px;
+    color: @dialog.text;
 }
 
 FluentSpinBox:focus {
@@ -609,6 +618,7 @@ FluentSpinBox QLineEdit {
     background: transparent;
     padding: 0;
     margin: 0;
+    color: @dialog.text;
 }
 
 /* --- Дополнительные стили для FluentComboBox --- */

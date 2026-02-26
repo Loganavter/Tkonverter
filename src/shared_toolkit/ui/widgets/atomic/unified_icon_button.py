@@ -5,12 +5,12 @@ from PyQt6.QtGui import QPainter, QMouseEvent, QColor, QPixmap, QWheelEvent
 from PyQt6.QtWidgets import QWidget, QLabel
 
 try:
-    from ...icon_manager import AppIcon, get_app_icon
+    from src.shared_toolkit.ui.icon_manager import AppIcon, get_app_icon
 except ImportError:
     AppIcon = None
     get_app_icon = None
-from ...managers.theme_manager import ThemeManager
-from .button_painter import ButtonPainter
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.button_painter import ButtonPainter
 
 class ButtonMode(Flag):
     SIMPLE = auto()

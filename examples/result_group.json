@@ -1,0 +1,576 @@
+{
+  "name": "Team Chat",
+  "type": "private_group",
+  "id": 20001,
+  "messages": [
+    {
+      "id": 1,
+      "type": "service",
+      "date": "2026-02-01T08:00:00",
+      "date_unixtime": "1769932800",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "create_group",
+      "title": "Team Chat",
+      "members": ["Alice Example", "Bob Sample"],
+      "text": ""
+    },
+    {
+      "id": 2,
+      "type": "service",
+      "date": "2026-02-01T08:01:00",
+      "date_unixtime": "1769932860",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "edit_group_title",
+      "title": "Team Chat v2",
+      "text": ""
+    },
+    {
+      "id": 3,
+      "type": "service",
+      "date": "2026-02-01T08:02:00",
+      "date_unixtime": "1769932920",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "edit_group_photo",
+      "photo": "photos/group_photo.jpg",
+      "photo_file_size": 150000,
+      "width": 640,
+      "height": 640,
+      "text": ""
+    },
+    {
+      "id": 4,
+      "type": "service",
+      "date": "2026-02-01T08:03:00",
+      "date_unixtime": "1769932980",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "invite_members",
+      "members": ["Charlie Test"],
+      "text": ""
+    },
+    {
+      "id": 5,
+      "type": "service",
+      "date": "2026-02-01T08:04:00",
+      "date_unixtime": "1769933040",
+      "actor": "Alice Example",
+      "actor_id": "user10001",
+      "action": "join_group_by_link",
+      "inviter": "Me",
+      "text": ""
+    },
+    {
+      "id": 6,
+      "type": "service",
+      "date": "2026-02-01T08:05:00",
+      "date_unixtime": "1769933100",
+      "actor": "Bob Sample",
+      "actor_id": "user10002",
+      "action": "join_group_by_request",
+      "text": ""
+    },
+    {
+      "id": 7,
+      "type": "message",
+      "date": "2026-02-01T08:10:00",
+      "date_unixtime": "1769933400",
+      "from": "Me",
+      "from_id": "user777000",
+      "text": "Welcome everyone!",
+      "text_entities": []
+    },
+    {
+      "id": 8,
+      "type": "message",
+      "date": "2026-02-01T08:15:00",
+      "date_unixtime": "1769933700",
+      "from": "Me",
+      "from_id": "user777000",
+      "poll": {
+        "question": "What should we do?",
+        "closed": false,
+        "total_voters": 0,
+        "answers": [
+          { "text": "Option A", "voters": "0", "chosen": "false" },
+          { "text": "Option B", "voters": "0", "chosen": "false" },
+          { "text": "Option C", "voters": "0", "chosen": "false" }
+        ]
+      },
+      "text": "Poll without votes"
+    },
+    {
+      "id": 9,
+      "type": "message",
+      "date": "2026-02-01T08:20:00",
+      "date_unixtime": "1769934000",
+      "from": "Alice Example",
+      "from_id": "user10001",
+      "poll": {
+        "question": "Best time for meeting?",
+        "closed": false,
+        "total_voters": 3,
+        "answers": [
+          { "text": "Morning", "voters": "2", "chosen": "false" },
+          { "text": "Afternoon", "voters": "1", "chosen": "false" },
+          { "text": "Evening", "voters": "0", "chosen": "false" }
+        ]
+      },
+      "text": "Poll where user didn't vote"
+    },
+    {
+      "id": 10,
+      "type": "message",
+      "date": "2026-02-01T08:25:00",
+      "date_unixtime": "1769934300",
+      "from": "Bob Sample",
+      "from_id": "user10002",
+      "poll": {
+        "question": "Which project to prioritize?",
+        "closed": false,
+        "total_voters": 4,
+        "answers": [
+          { "text": "Project A", "voters": "2", "chosen": "true" },
+          { "text": "Project B", "voters": "1", "chosen": "false" },
+          { "text": "Project C", "voters": "1", "chosen": "false" }
+        ]
+      },
+      "text": "Poll where user voted"
+    },
+    {
+      "id": 11,
+      "type": "message",
+      "date": "2026-02-01T08:30:00",
+      "date_unixtime": "1769934600",
+      "from": "Me",
+      "from_id": "user777000",
+      "poll": {
+        "question": "Final decision?",
+        "closed": true,
+        "total_voters": 5,
+        "answers": [
+          { "text": "Yes", "voters": "3", "chosen": "true" },
+          { "text": "No", "voters": "2", "chosen": "false" }
+        ]
+      },
+      "text": "Closed poll with results"
+    },
+    {
+      "id": 12,
+      "type": "message",
+      "date": "2026-02-01T08:35:00",
+      "date_unixtime": "1769934900",
+      "from": "Me",
+      "from_id": "user777000",
+      "poll": {
+        "question": "Closed poll, no votes",
+        "closed": true,
+        "total_voters": 0,
+        "answers": [
+          { "text": "Option 1", "voters": "0", "chosen": "false" },
+          { "text": "Option 2", "voters": "0", "chosen": "false" }
+        ]
+      },
+      "text": "Closed poll without any votes"
+    },
+    {
+      "id": 13,
+      "type": "service",
+      "date": "2026-02-01T08:40:00",
+      "date_unixtime": "1769935200",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "pin_message",
+      "message_id": 7,
+      "text": ""
+    },
+    {
+      "id": 14,
+      "type": "message",
+      "date": "2026-02-01T08:45:00",
+      "date_unixtime": "1769935500",
+      "from": "Alice Example",
+      "from_id": "user10001",
+      "todo_list": {
+        "title": "Sprint tasks",
+        "others_can_append": true,
+        "others_can_complete": true,
+        "answers": [
+          { "text": "Task 1", "id": 1 },
+          { "text": "Task 2", "id": 2 },
+          { "text": "Task 3", "id": 3 }
+        ]
+      },
+      "text": "Todo list in group"
+    },
+    {
+      "id": 15,
+      "type": "service",
+      "date": "2026-02-01T08:50:00",
+      "date_unixtime": "1769935800",
+      "actor": "Bob Sample",
+      "actor_id": "user10002",
+      "action": "todo_append_tasks",
+      "items": [
+        { "text": "Task 4", "id": 4 },
+        { "text": "Task 5", "id": 5 }
+      ],
+      "text": ""
+    },
+    {
+      "id": 16,
+      "type": "service",
+      "date": "2026-02-01T08:55:00",
+      "date_unixtime": "1769936100",
+      "actor": "Alice Example",
+      "actor_id": "user10001",
+      "action": "todo_completions",
+      "completed": [1, 2],
+      "incompleted": [3, 4, 5],
+      "text": ""
+    },
+    {
+      "id": 17,
+      "type": "service",
+      "date": "2026-02-01T09:00:00",
+      "date_unixtime": "1769936400",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "remove_members",
+      "members": ["Charlie Test"],
+      "text": ""
+    },
+    {
+      "id": 18,
+      "type": "service",
+      "date": "2026-02-01T09:05:00",
+      "date_unixtime": "1769936700",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "delete_group_photo",
+      "text": ""
+    },
+    {
+      "id": 19,
+      "type": "service",
+      "date": "2026-02-01T09:10:00",
+      "date_unixtime": "1769937000",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "group_call",
+      "duration": 1800,
+      "text": ""
+    },
+    {
+      "id": 20,
+      "type": "service",
+      "date": "2026-02-01T09:15:00",
+      "date_unixtime": "1769937300",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "invite_to_group_call",
+      "members": ["Alice Example", "Bob Sample"],
+      "text": ""
+    },
+    {
+      "id": 21,
+      "type": "service",
+      "date": "2026-02-01T09:20:00",
+      "date_unixtime": "1769937600",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "group_call_scheduled",
+      "schedule_date": 1769999999,
+      "text": ""
+    },
+    {
+      "id": 22,
+      "type": "service",
+      "date": "2026-02-01T09:25:00",
+      "date_unixtime": "1769937900",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "set_messages_ttl",
+      "period": 86400,
+      "text": ""
+    },
+    {
+      "id": 23,
+      "type": "service",
+      "date": "2026-02-01T09:30:00",
+      "date_unixtime": "1769938200",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "edit_chat_theme",
+      "emoticon": "🎨",
+      "text": ""
+    },
+    {
+      "id": 24,
+      "type": "service",
+      "date": "2026-02-01T09:35:00",
+      "date_unixtime": "1769938500",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "clear_history",
+      "text": ""
+    },
+    {
+      "id": 25,
+      "type": "message",
+      "date": "2026-02-01T09:40:00",
+      "date_unixtime": "1769938800",
+      "from": "Alice Example",
+      "from_id": "user10001",
+      "author": "Admin",
+      "forwarded_from": "Public Channel",
+      "forwarded_from_id": "channel500",
+      "text": "Forwarded message from channel",
+      "text_entities": []
+    },
+    {
+      "id": 26,
+      "type": "message",
+      "date": "2026-02-01T09:45:00",
+      "date_unixtime": "1769939100",
+      "from": "Bob Sample",
+      "from_id": "user10002",
+      "reply_to_message_id": 7,
+      "text": "Reply to pinned message",
+      "text_entities": []
+    },
+    {
+      "id": 27,
+      "type": "service",
+      "date": "2026-02-01T09:50:00",
+      "date_unixtime": "1769939400",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "migrate_to_supergroup",
+      "text": ""
+    },
+    {
+      "id": 28,
+      "type": "service",
+      "date": "2026-02-01T09:51:00",
+      "date_unixtime": "1769939460",
+      "actor": "Me",
+      "actor_id": "user777000",
+      "action": "migrate_from_group",
+      "title": "Team Chat",
+      "text": ""
+    },
+    {
+      "id": 29,
+      "type": "message",
+      "date": "2026-02-01T10:00:00",
+      "date_unixtime": "1769940000",
+      "from": "Alice Example",
+      "from_id": "user10001",
+      "photo": "photos/group_shared.jpg",
+      "photo_file_size": 200000,
+      "width": 1024,
+      "height": 768,
+      "text": "Shared photo"
+    },
+    {
+      "id": 30,
+      "type": "message",
+      "date": "2026-02-01T10:05:00",
+      "date_unixtime": "1769940300",
+      "from": "Bob Sample",
+      "from_id": "user10002",
+      "file": "files/document.pdf",
+      "file_name": "document.pdf",
+      "file_size": 1500000,
+      "mime_type": "application/pdf",
+      "text": "Shared document"
+    },
+    {
+      "id": 31,
+      "type": "message",
+      "date": "2026-02-01T10:10:00",
+      "date_unixtime": "1769940600",
+      "from": "Me",
+      "from_id": "user777000",
+      "file": "(File exceeds maximum size. Change data exporting settings to download.)",
+      "file_name": "huge_file.zip",
+      "file_size": 5000000000,
+      "mime_type": "application/zip",
+      "text": "File too large"
+    },
+    {
+      "id": 32,
+      "type": "message",
+      "date": "2026-02-01T10:15:00",
+      "date_unixtime": "1769940900",
+      "from": "Alice Example",
+      "from_id": "user10001",
+      "file": "(File not included. Change data exporting settings to download.)",
+      "file_name": "excluded.bin",
+      "file_size": 1000000,
+      "mime_type": "application/octet-stream",
+      "text": "Excluded file type"
+    },
+    {
+      "id": 33,
+      "type": "message",
+      "date": "2026-02-01T10:20:00",
+      "date_unixtime": "1769941200",
+      "from": "Bob Sample",
+      "from_id": "user10002",
+      "reactions": [
+        {
+          "type": "emoji",
+          "count": 5,
+          "emoji": "👍",
+          "recent": [
+            { "from": "Me", "from_id": "user777000", "date": "2026-02-01T10:21:00" },
+            { "from": "Alice Example", "from_id": "user10001", "date": "2026-02-01T10:22:00" }
+          ]
+        }
+      ],
+      "text": "Message with reactions"
+    },
+    {
+      "id": 34,
+      "type": "message",
+      "date": "2026-02-01T10:25:00",
+      "date_unixtime": "1769941500",
+      "from": "Me",
+      "from_id": "user777000",
+      "text": "Message mentioning @alice and @bob",
+      "text_entities": [
+        { "type": "plain", "text": "Message mentioning " },
+        { "type": "mention", "text": "@alice" },
+        { "type": "plain", "text": " and " },
+        { "type": "mention", "text": "@bob" }
+      ]
+    },
+    {
+      "id": 35,
+      "type": "message",
+      "date": "2026-02-01T10:30:00",
+      "date_unixtime": "1769941800",
+      "from": "Alice Example",
+      "from_id": "user10001",
+      "location_information": {
+        "latitude": 40.7128,
+        "longitude": -74.006
+      },
+      "text": "Meeting location"
+    },
+    {
+      "id": 36,
+      "type": "message",
+      "date": "2026-02-01T10:35:00",
+      "date_unixtime": "1769942100",
+      "from": "Bob Sample",
+      "from_id": "user10002",
+      "place_name": "Office",
+      "address": "123 Main St",
+      "location_information": {
+        "latitude": 40.7580,
+        "longitude": -73.9855
+      },
+      "text": ""
+    },
+    {
+      "id": 37,
+      "type": "message",
+      "date": "2026-02-01T10:40:00",
+      "date_unixtime": "1769942400",
+      "from": "Me",
+      "from_id": "user777000",
+      "contact_information": {
+        "first_name": "Client",
+        "last_name": "Contact",
+        "phone_number": "+1 555 999 88 77"
+      },
+      "text": ""
+    },
+    {
+      "id": 38,
+      "type": "service",
+      "date": "2026-02-01T10:45:00",
+      "date_unixtime": "1769942700",
+      "actor": "Alice Example",
+      "actor_id": "user10001",
+      "action": "score_in_game",
+      "game_message_id": 39,
+      "score": 10000,
+      "text": ""
+    },
+    {
+      "id": 39,
+      "type": "message",
+      "date": "2026-02-01T10:50:00",
+      "date_unixtime": "1769943000",
+      "from": "Me",
+      "from_id": "user777000",
+      "game_title": "Team Game",
+      "game_description": "Play together",
+      "game_link": "https://t.me/gamebot?game=team",
+      "text": ""
+    },
+    {
+      "id": 40,
+      "type": "message",
+      "date": "2026-02-01T10:55:00",
+      "date_unixtime": "1769943300",
+      "from": "Alice Example",
+      "from_id": "user10001",
+      "invoice_information": {
+        "title": "Team Subscription",
+        "description": "Monthly",
+        "amount": 999,
+        "currency": "USD"
+      },
+      "text": ""
+    },
+    {
+      "id": 41,
+      "type": "service",
+      "date": "2026-02-01T11:00:00",
+      "date_unixtime": "1769943600",
+      "action": "send_payment",
+      "amount": 999,
+      "currency": "USD",
+      "invoice_message_id": 40,
+      "text": ""
+    },
+    {
+      "id": 42,
+      "type": "message",
+      "date": "2025-11-05T09:00:00",
+      "date_unixtime": "1762333200",
+      "from": "Me",
+      "from_id": "user777000",
+      "text": "Kickoff in autumn"
+    },
+    {
+      "id": 43,
+      "type": "message",
+      "date": "2026-02-02T12:00:00",
+      "date_unixtime": "1769986800",
+      "from": "Alice Example",
+      "from_id": "user10001",
+      "text": "Second day sync"
+    },
+    {
+      "id": 44,
+      "type": "message",
+      "date": "2027-01-10T18:45:00",
+      "date_unixtime": "1799606700",
+      "from": "Bob Sample",
+      "from_id": "user10002",
+      "text": "Long-term retrospective"
+    },
+    {
+      "id": 45,
+      "type": "unsupported"
+    }
+  ]
+}

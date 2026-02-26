@@ -1,8 +1,4 @@
-"""
-Main entry point for CLI.
 
-Handles command routing and global error handling.
-"""
 
 import sys
 import logging
@@ -13,14 +9,14 @@ from src.cli.output_formatter import OutputFormatter
 from src.cli.commands.info import InfoCommand
 from src.cli.commands.convert import ConvertCommand
 from src.cli.commands.analyze import AnalyzeCommand
+from src.core.application.analysis_service import AnalysisService
+from src.core.application.chat_service import ChatService
+from src.core.application.conversion_service import ConversionService
+from src.core.application.statistics_service import StatisticsService
+from src.core.application.tokenizer_service import TokenizerService
+from src.core.dependency_injection import setup_container
 
 def setup_logging(debug: bool = False):
-    """
-    Setup logging configuration.
-
-    Args:
-        debug: Whether to enable debug logging
-    """
     level = logging.DEBUG if debug else logging.WARNING
 
     logging.basicConfig(
@@ -30,20 +26,10 @@ def setup_logging(debug: bool = False):
     )
 
     logging.getLogger("markdown").setLevel(logging.CRITICAL)
-    logging.getLogger("matplotlib").setLevel(logging.WARNING)
     logging.getLogger("transformers").setLevel(logging.WARNING)
     logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
 
 def main(args: Optional[list] = None) -> int:
-    """
-    Main CLI entry point.
-
-    Args:
-        args: Command line arguments (default: sys.argv[1:])
-
-    Returns:
-        int: Exit code (0 for success, 1 for error)
-    """
     try:
 
         parser = ArgumentParser()
@@ -60,17 +46,33 @@ def main(args: Optional[list] = None) -> int:
             return 1
 
         command = parsed_args.command
+        container = setup_container()
+        chat_service = container.get(ChatService)
+        stats_service = container.get(StatisticsService)
+        conversion_service = container.get(ConversionService)
+        analysis_service = container.get(AnalysisService)
+        tokenizer_service = container.get(TokenizerService)
 
         if command == "info":
-            info_cmd = InfoCommand()
+            info_cmd = InfoCommand(
+                chat_service=chat_service,
+                stats_service=stats_service,
+            )
             return info_cmd.execute(parsed_args)
 
         elif command == "convert":
-            convert_cmd = ConvertCommand()
+            convert_cmd = ConvertCommand(
+                chat_service=chat_service,
+                conversion_service=conversion_service,
+            )
             return convert_cmd.execute(parsed_args)
 
         elif command == "analyze":
-            analyze_cmd = AnalyzeCommand()
+            analyze_cmd = AnalyzeCommand(
+                chat_service=chat_service,
+                analysis_service=analysis_service,
+                tokenizer_service=tokenizer_service,
+            )
             return analyze_cmd.execute(parsed_args)
 
         else:

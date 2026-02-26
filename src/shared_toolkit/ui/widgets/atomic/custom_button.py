@@ -3,8 +3,8 @@ from PyQt6.QtCore import QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QIcon, QPainterPath
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
-from ...managers.theme_manager import ThemeManager
-from ..helpers.underline_painter import (
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.helpers.underline_painter import (
     UnderlineConfig,
     draw_bottom_underline,
 )
@@ -67,10 +67,8 @@ class CustomButton(QWidget):
 
     def _on_theme_changed(self):
         self._update_icon_pixmap()
-        prefix = self._style_prefix()
-        text_color_key = f"{prefix}.text" if "primary" in prefix else "dialog.text"
-        text_color = self.theme_manager.get_color(text_color_key)
-        self.text_label.setStyleSheet(f"color: {text_color.name()}; background: transparent;")
+        self.text_label.style().unpolish(self.text_label)
+        self.text_label.style().polish(self.text_label)
         self.update()
 
     def _clear_layout(self):

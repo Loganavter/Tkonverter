@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import datetime
 from html import escape
@@ -5,16 +6,18 @@ from typing import TYPE_CHECKING, Optional
 
 from src.resources.translations import tr
 
+logger = logging.getLogger(__name__)
+
 INVALID_FORWARD_SOURCES = {"/dev/null", "null"}
 
 if TYPE_CHECKING:
     from core.conversion.context import ConversionContext
 
 def pluralize_ru(number: int, key_form1: str, key_form2: str, key_form5: str) -> str:
-    """
-    Selects the correct Russian plural form based on the number.
-    """
-    num = abs(number)
+    try:
+        num = abs(int(number))
+    except (TypeError, ValueError):
+        num = 0
     if 11 <= num % 100 <= 19:
         return tr(key_form5)
     last_digit = num % 10
@@ -29,7 +32,6 @@ def truncate_name(name: str | None, context: Optional["ConversionContext"] = Non
         return ""
 
     if context and context.anonymizer:
-
         name = context.anonymizer.anonymize_string_name(name)
 
     max_len = 20
@@ -45,46 +47,49 @@ def format_member_list(members: list[str], max_shown: int = 10, context: Optiona
     if not total:
         return ""
 
+    processed_members = members
+    if context and context.anonymizer:
+        processed_members = [context.anonymizer.anonymize_string_name(m) for m in members]
+
     if total > max_shown:
-        members_to_list = members[:max_shown]
+        members_to_list = processed_members[:max_shown]
         remaining_count = total - max_shown
         members_str = ", ".join([truncate_name(m, context) for m in members_to_list])
         members_str += f" and {remaining_count} more"
     else:
-        members_str = ", ".join([truncate_name(m, context) for m in members])
+        members_str = ", ".join([truncate_name(m, context) for m in processed_members])
     return members_str
 
 def format_ttl_period(seconds: int | None) -> str:
     if not seconds:
-        return tr("disabled")
+        return tr("time.disabled")
     if seconds == 86400:
-        return tr("24 hours")
+        return tr("time.hours_24")
     if seconds == 604800:
-        return tr("7 days")
+        return tr("time.days_7")
     if seconds == 2592000:
-        return tr("1 month")
+        return tr("time.month_1")
 
     days = seconds // 86400
     if days > 0:
-        return tr("{days} d.").format(days=days)
+        return tr("time.days_template", days=days)
 
     hours = seconds // 3600
     if hours > 0:
-        return tr("{hours} h.").format(hours=hours)
+        return tr("time.hours_template", hours=hours)
 
     minutes = seconds // 60
     if minutes > 0:
-        return tr("{minutes} min.").format(minutes=minutes)
+        return tr("time.minutes_template", minutes=minutes)
 
-    return tr("{seconds} sec.").format(seconds=seconds)
+    return tr("time.seconds_template", seconds=seconds)
 
 def sanitize_forward_name(name: str | None) -> str:
     if not name or name.strip() in INVALID_FORWARD_SOURCES:
-        return tr("unknown source")
+        return tr("time.unknown_source")
     return name
 
 def format_date_separator(dt: datetime) -> str:
-
     month_key = f"month_gen_{dt.month}"
     month_name = tr(month_key)
     if month_name == month_key:
@@ -112,14 +117,12 @@ def process_text_to_plain(text_data, context: "ConversionContext") -> str:
     show_links = config.get("show_links", True)
 
     if isinstance(text_data, str):
-
         return context.anonymizer.process_text(text_data) if context.anonymizer else text_data
 
     elif isinstance(text_data, list):
         parts = []
         for item in text_data:
             if isinstance(item, str):
-
                 if context.anonymizer:
                     parts.append(context.anonymizer.process_text(item))
                 else:
@@ -128,23 +131,15 @@ def process_text_to_plain(text_data, context: "ConversionContext") -> str:
                 text = item["text"]
                 item_type = item.get("type")
 
-                if context.anonymizer and item_type not in ["text_mention", "text_link"]:
-                     text = context.anonymizer.process_text(text)
+                if context.anonymizer and item_type not in ["text_link", "text_mention"]:
+                    text = context.anonymizer.process_text(text)
 
                 if item_type == "spoiler" and text == "\n":
                     text = ""
 
                 if item_type == "text_mention" and context.anonymizer:
-
-                    user_id = str(item.get("user_id", ""))
-
-                    anon_name = context.anonymizer.get_anonymized_name(user_id, text)
-                    parts.append(anon_name)
+                    parts.append(context.anonymizer.anonymize_string_name(text))
                     continue
-
-                if item_type == "mention" and context.anonymizer:
-
-                    pass
 
                 if item_type == "bold" and show_markdown:
                     parts.append(f"**{text}**")
@@ -165,10 +160,10 @@ def process_text_to_plain(text_data, context: "ConversionContext") -> str:
                 elif item_type == "pre" and show_markdown:
                     lang = item.get("language", "")
                     parts.append(f"\n```{lang}\n{text}\n```\n")
+
                 elif item_type == "text_link":
                     if show_links:
                         href = item.get("href", "")
-
                         if context.anonymizer and context.anonymizer.config.hide_links:
                             href = context.anonymizer.process_text(href)
                         parts.append(f"[{text}]({href})")
@@ -176,6 +171,8 @@ def process_text_to_plain(text_data, context: "ConversionContext") -> str:
                         parts.append(text)
                 elif item_type == "link":
                     if show_links:
+                        if context.anonymizer and context.anonymizer.config.hide_links:
+                            text = context.anonymizer.process_text(text)
                         parts.append(text)
                 elif item_type == "blockquote" and show_markdown:
                     lines = text.split("\n")
@@ -192,28 +189,19 @@ def process_text_to_plain(text_data, context: "ConversionContext") -> str:
     return raw_text
 
 def markdown_to_html_for_preview(text: str) -> str:
-    """Converts simple markdown-like text to basic HTML for preview."""
 
     text = re.sub(r'```(.*?)```', r'<code>\1</code>', text, flags=re.DOTALL)
-
     text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-
     text = re.sub(r'__(.*?)__', r'<u>\1</u>', text)
-
     text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', text)
-
     text = re.sub(r'~~(.*?)~~', r'<s>\1</s>', text)
-
     text = re.sub(r'\|\|(.*?)\|\|', r'<span class="spoiler">\1</span>', text)
-
     text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
-
     text = re.sub(r'\[(.*?)\]\((.*?)\)',
                   lambda m: f'<a href="{m.group(2).replace("&amp;", "&")}">{m.group(1)}</a>',
                   text)
 
     lines = text.split('\n')
-
     processed_lines = []
     for i, line in enumerate(lines):
         leading_spaces = len(line) - len(line.lstrip(' '))
@@ -221,5 +209,4 @@ def markdown_to_html_for_preview(text: str) -> str:
         processed_lines.append(processed_line)
 
     text = '<br>'.join(processed_lines)
-
     return text

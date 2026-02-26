@@ -1,12 +1,4 @@
-"""
-Service for working with charts.
 
-- Mathematical calculations for sunburst charts
-- Color schemes and algorithms
-- Tree traversal and depth calculations
-- Node filtering logic
-- Element positioning
-"""
 
 import math
 from dataclasses import dataclass
@@ -31,7 +23,6 @@ MIN_ANGLE_FOR_TEXT = 0.1
 
 @dataclass
 class ChartGeometry:
-    """Geometric parameters of the chart."""
 
     center_x: float
     center_y: float
@@ -40,13 +31,11 @@ class ChartGeometry:
     total_radius: float
 
     def get_ring_bounds(self, level: int) -> Tuple[float, float]:
-        """Returns inner and outer radius for the level."""
         inner = self.inner_radius + level * self.ring_width
         outer = inner + self.ring_width
         return inner, outer
 
 class ChartService:
-    """Service for working with charts."""
 
     def __init__(self):
         self._current_geometry: Optional[ChartGeometry] = None
@@ -174,42 +163,63 @@ class ChartService:
 
         return color
 
+    def _hsv_to_rgb(self, h: float, s: float, v: float) -> tuple:
+        if s <= 0:
+            return (v, v, v)
+        i = int(h * 6.0)
+        f = (h * 6.0) - i
+        i = i % 6
+        p = v * (1.0 - s)
+        q = v * (1.0 - s * f)
+        t = v * (1.0 - s * (1.0 - f))
+        if i == 0:
+            return (v, t, p)
+        if i == 1:
+            return (q, v, p)
+        if i == 2:
+            return (p, v, t)
+        if i == 3:
+            return (p, q, v)
+        if i == 4:
+            return (t, p, v)
+        return (v, p, q)
+
     def _get_filelight_color(self, angle_deg: float, level: int) -> str:
-        """KDE Filelight style color algorithm."""
-        from matplotlib.colors import hsv_to_rgb
-
         hue = (angle_deg % 360) / 360.0
-
         sats = [YEAR_SATURATION, MONTH_SATURATION, DAY_SATURATION]
         vals = [YEAR_BRIGHTNESS, MONTH_BRIGHTNESS, DAY_BRIGHTNESS]
-
         saturation = sats[min(level, len(sats) - 1)]
         value = vals[min(level, len(vals) - 1)]
-
-        rgb = hsv_to_rgb((hue, saturation, value))
-
+        rgb = self._hsv_to_rgb(hue, saturation, value)
         return "#{:02x}{:02x}{:02x}".format(
             int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255)
         )
 
+    def _hex_to_rgb(self, color: str) -> Optional[tuple]:
+        color = color.strip()
+        if color.startswith("#"):
+            color = color[1:]
+        if len(color) == 6:
+            try:
+                return (
+                    int(color[0:2], 16) / 255.0,
+                    int(color[2:4], 16) / 255.0,
+                    int(color[4:6], 16) / 255.0,
+                )
+            except ValueError:
+                pass
+        return None
+
     def darken_color(self, color: str) -> str:
-        """Darkens the color."""
-        from matplotlib.colors import to_rgb
-
-        try:
-            rgb = to_rgb(color)
-            darkened = tuple(c * DARKEN_FACTOR for c in rgb)
-            darkened_color = "#{:02x}{:02x}{:02x}".format(
-                int(darkened[0] * 255), int(darkened[1] * 255), int(darkened[2] * 255)
-            )
-
-            return darkened_color
-        except Exception as e:
-
+        rgb = self._hex_to_rgb(color)
+        if rgb is None:
             return color
+        darkened = tuple(c * DARKEN_FACTOR for c in rgb)
+        return "#{:02x}{:02x}{:02x}".format(
+            int(darkened[0] * 255), int(darkened[1] * 255), int(darkened[2] * 255)
+        )
 
     def get_node_absolute_depth(self, node: TreeNode) -> int:
-        """Calculates absolute depth of node in tree."""
         depth = 0
         current = node
         while current and current.parent:
@@ -273,7 +283,6 @@ class ChartService:
         return filtered_sum
 
     def get_descendant_day_nodes(self, node: TreeNode) -> List[TreeNode]:
-        """Gets all child day nodes (leaves with numeric names)."""
         day_nodes = []
 
         def collect_day_nodes(current_node):
@@ -303,7 +312,6 @@ class ChartService:
         return day_nodes
 
     def _detect_unit_from_node(self, node: TreeNode) -> str:
-        """Attempts to determine unit of measurement from tree."""
         if "token" in node.name.lower():
             return "tokens"
         else:
@@ -346,7 +354,6 @@ class ChartService:
         return None
 
     def get_segment_tooltip(self, segment: SunburstSegment, unit: str) -> str:
-        """Creates tooltip text for segment."""
         value_text = f"{int(segment.node.value):,} {unit}"
 
         if segment.is_disabled:
@@ -377,7 +384,6 @@ class ChartService:
         return new_disabled
 
     def get_chart_statistics(self, view_model: ChartViewModel) -> Dict[str, Any]:
-        """Returns chart statistics."""
         total_segments = len(view_model.segments)
         disabled_segments = sum(1 for s in view_model.segments if s.is_disabled)
 

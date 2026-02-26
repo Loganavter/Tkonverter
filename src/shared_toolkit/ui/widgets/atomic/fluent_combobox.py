@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QRect, QRectF, QSize, Qt, QTimer
+from PyQt6.QtCore import QEvent, QRect, QRectF, QSize, Qt, QTimer
 import time
 from PyQt6.QtGui import QColor, QGuiApplication, QPainterPath, QRegion
 from PyQt6.QtWidgets import (
@@ -14,8 +14,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ...managers.theme_manager import ThemeManager
-from .minimalist_scrollbar import OverlayScrollArea
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.minimalist_scrollbar import OverlayScrollArea
 
 class ComboBoxItemDelegate(QStyledItemDelegate):
     def __init__(self, tm: ThemeManager):
@@ -45,6 +45,8 @@ class ComboBoxItemDelegate(QStyledItemDelegate):
 
             if is_selected:
                 option.state &= ~QStyle.StateFlag.State_Selected
+            if is_hover:
+                option.state &= ~QStyle.StateFlag.State_MouseOver
 
         super().paint(painter, option, index)
 
@@ -107,7 +109,6 @@ class _ComboPopupFlyout(QWidget):
 
         self.view.setItemDelegate(ComboBoxItemDelegate(self._tm))
         self.scroll_area = OverlayScrollArea(self.container)
-        self.scroll_area.setStyleSheet("background-color: transparent; border: none;")
         self.scroll_area.setWidgetResizable(True)
 
         self.scroll_area.setViewportMargins(0, 0, 0, 0)
@@ -242,7 +243,7 @@ class _ComboPopupFlyout(QWidget):
             pass
 
         try:
-            self.scroll_area._update_scrollbar_visibility()
+            self.scroll_area._update_scrollbar_visibility(combo.count())
         except Exception:
             pass
 
@@ -292,7 +293,7 @@ class _ComboPopupFlyout(QWidget):
 
         try:
             self.scroll_area._position_scrollbar()
-            self.scroll_area._update_scrollbar_visibility()
+            self.scroll_area._update_scrollbar_visibility(combo.count())
         except Exception:
             pass
 
@@ -359,6 +360,11 @@ class FluentComboBox(QComboBox):
 
         self._apply_theme_styles()
         self._theme.theme_changed.connect(self._apply_theme_styles)
+
+    def changeEvent(self, event: QEvent):
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.ApplicationFontChange):
+            self.updateGeometry()
+        super().changeEvent(event)
 
     def _apply_theme_styles(self):
         is_dark = self._theme.is_dark()
@@ -436,10 +442,10 @@ class FluentComboBox(QComboBox):
                     text-align: center;
                 }}
                 QListView::item:hover {{
-                    background-color: {hover_bg_str};
+                    background-color: transparent;
                 }}
                 QListView::item:selected {{
-                    background-color: {selected_bg_str};
+                    background-color: transparent;
                     color: {selected_text};
                 }}
             """)

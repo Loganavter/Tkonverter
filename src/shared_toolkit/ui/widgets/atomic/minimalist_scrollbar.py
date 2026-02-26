@@ -3,8 +3,9 @@
 from PyQt6.QtCore import QEvent, QRect, Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QScrollArea, QScrollBar
+from PyQt6.QtGui import QWheelEvent
 
-from ...managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class MinimalistScrollBar(QScrollBar):
 
@@ -232,7 +233,7 @@ class OverlayScrollArea(QScrollArea):
 
             if items_count == 0:
                 need_scrollbar = content_doesnt_fit
-            elif items_count <= 8:
+            elif items_count < 7:
                 need_scrollbar = False
             else:
                 need_scrollbar = content_doesnt_fit
@@ -250,4 +251,10 @@ class OverlayScrollArea(QScrollArea):
         x = self.width() - self._scrollbar_width
         self.custom_v_scrollbar.setGeometry(x, 0, self._scrollbar_width, self.height())
         self.custom_v_scrollbar.raise_()
+
+    def wheelEvent(self, event: QWheelEvent):
+        if self._stored_items_count > 0 and self._stored_items_count < 7:
+            event.accept()
+            return
+        super().wheelEvent(event)
 

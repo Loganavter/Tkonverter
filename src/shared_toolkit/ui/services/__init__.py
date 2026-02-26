@@ -1,6 +1,6 @@
 
 
-from shared_toolkit.ui.services.icon_service import IconService, get_icon_by_name, get_icon_service
+from src.shared_toolkit.ui.services.icon_service import IconService, get_icon_by_name, get_icon_service
 
 __all__ = [
     'IconService',

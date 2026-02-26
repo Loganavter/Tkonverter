@@ -21,8 +21,8 @@ from PyQt6.QtWidgets import (
 )
 
 from core.constants import AppConstants
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from ./base_flyout import BaseFlyout
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.composite.base_flyout import BaseFlyout
 
 logger = logging.getLogger("ImproveImgSLI")
 

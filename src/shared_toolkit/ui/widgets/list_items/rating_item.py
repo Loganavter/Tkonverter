@@ -23,15 +23,15 @@ from PyQt6.QtWidgets import (
 )
 
 from events.drag_drop_handler import DragAndDropService
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from ...gesture_resolver import RatingGestureTransaction
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.gesture_resolver import RatingGestureTransaction
 try:
-    from ...icon_manager import AppIcon, get_app_icon
+    from src.shared_toolkit.ui.icon_manager import AppIcon, get_app_icon
 except ImportError:
     AppIcon = None
     get_app_icon = None
-from ..atomic./buttons import AutoRepeatButton
-from ..atomic./tooltips import PathTooltip
+from src.shared_toolkit.ui.widgets.atomic.buttons import AutoRepeatButton
+from src.shared_toolkit.ui.widgets.atomic.tooltips import PathTooltip
 
 class RatingListItem(QWidget):
     itemSelected = pyqtSignal(int)
@@ -106,17 +106,12 @@ class RatingListItem(QWidget):
 
             self.btn_minus = AutoRepeatButton(get_app_icon(AppIcon.REMOVE), self)
             self.btn_plus = AutoRepeatButton(get_app_icon(AppIcon.ADD), self)
+            self.btn_minus.setObjectName("minusButton")
+            self.btn_plus.setObjectName("plusButton")
             for btn in [self.btn_minus, self.btn_plus]:
                 btn.setFixedSize(22, 22)
                 btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
                 btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-            self.btn_minus.setStyleSheet(
-                "ToolButton { qproperty-iconSize: 9px; border-radius: 11px; padding: 0px; }"
-            )
-            self.btn_plus.setStyleSheet(
-                "ToolButton { qproperty-iconSize: 9px; border-radius: 11px; padding: 0px; margin-top: -1px; }"
-            )
 
             self.layout.addWidget(self.rating_label)
             self.layout.addWidget(self.name_label, 1)

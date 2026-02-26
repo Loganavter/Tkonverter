@@ -1,10 +1,10 @@
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QEvent
 from PyQt6.QtGui import QMouseEvent, QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
-from ..atomic./simple_icon_button import SimpleIconButton
-from ./color_options_flyout import ColorOptionsFlyout
+from src.shared_toolkit.ui.widgets.atomic.simple_icon_button import SimpleIconButton
+from src.shared_toolkit.ui.widgets.composite.color_options_flyout import ColorOptionsFlyout
 try:
-    from ...icon_manager import AppIcon, get_app_icon
+    from src.shared_toolkit.ui.icon_manager import AppIcon, get_app_icon
 except ImportError:
     AppIcon = None
     get_app_icon = None

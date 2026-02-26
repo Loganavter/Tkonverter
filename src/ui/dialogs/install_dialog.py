@@ -14,13 +14,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.core.settings import SettingsManager
+from src.core.settings_port import SettingsPort
 from src.resources.translations import tr
 from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
-from shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from src.shared_toolkit.ui.widgets.atomic import MinimalistScrollBar
 
 class InstallDialog(QDialog):
     install_triggered = pyqtSignal()
@@ -32,16 +32,16 @@ class InstallDialog(QDialog):
         is_installed: bool,
         is_loaded: bool,
         loaded_model_name: str | None,
-        settings_manager: SettingsManager,
+        settings_manager: SettingsPort,
         settings: dict,
         model_in_cache: bool = False,
+        tokenizer_service=None,
         theme_manager=None,
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle(tr("AI Component Management"))
+        self.setWindowTitle(tr("install.ai_component_management"))
         setup_dialog_icon(self)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setMinimumSize(500, 450)
 
         main_layout = QVBoxLayout(self)
@@ -51,14 +51,17 @@ class InstallDialog(QDialog):
         self.is_loaded = is_loaded
         self.model_in_cache = model_in_cache
         self._settings_manager = settings_manager
-        self._theme_manager = theme_manager or ThemeManager.get_instance()
+        if theme_manager is None:
+            raise ValueError("theme_manager must be provided via dependency injection")
+        self._theme_manager = theme_manager
+        self._tokenizer_service = tokenizer_service
         self._restart_needed = False
-        status_group, status_layout, _ = self._create_styled_group(tr("Status:"))
+        status_group, status_layout, _ = self._create_styled_group(tr("install.status"))
         status_inner_layout = QVBoxLayout()
         status_inner_layout.setSpacing(2)
 
         library_status_layout = QHBoxLayout()
-        library_status_label = QLabel(tr("Library Status:"))
+        library_status_label = QLabel(tr("install.library_status"))
         self.status_label = QLabel()
         library_status_layout.addWidget(library_status_label)
         library_status_layout.addWidget(self.status_label)
@@ -66,9 +69,9 @@ class InstallDialog(QDialog):
         status_inner_layout.addLayout(library_status_layout)
 
         model_status_layout = QHBoxLayout()
-        model_status_label = QLabel(tr("Loaded Model:"))
+        model_status_label = QLabel(tr("install.loaded_model"))
         self.loaded_model_label = QLabel()
-        self.loaded_model_label.setStyleSheet("font-style: italic;")
+        self.loaded_model_label.setObjectName("loadedModelLabel")
         model_status_layout.addWidget(model_status_label)
         model_status_layout.addWidget(self.loaded_model_label)
         model_status_layout.addStretch()
@@ -76,18 +79,14 @@ class InstallDialog(QDialog):
 
         status_layout.addLayout(status_inner_layout)
 
-        actions_group, actions_layout, _ = self._create_styled_group(tr("Actions"))
+        actions_group, actions_layout, _ = self._create_styled_group(tr("install.actions"))
         self.install_button = CustomButton(
-            None, tr("Install/Update transformers library")
+            None, tr("install.install_transformers")
         )
-        self.install_button.setToolTip(tr("This action requires restart"))
+        self.install_button.setToolTip(tr("install.requires_restart_tooltip"))
         self.install_button.clicked.connect(self.install_triggered.emit)
-        self.remove_button = CustomButton(None, tr("Remove Model from Cache"))
-        self.remove_button.setToolTip(
-            tr(
-                "Removes the model specified in the configuration from the local cache to free up disk space."
-            )
-        )
+        self.remove_button = CustomButton(None, tr("install.remove_from_cache"))
+        self.remove_button.setToolTip(tr("install.remove_tooltip"))
         self.remove_button.clicked.connect(self.remove_model_triggered.emit)
 
         buttons_layout = QHBoxLayout()
@@ -95,47 +94,50 @@ class InstallDialog(QDialog):
         buttons_layout.addWidget(self.remove_button)
         actions_layout.addLayout(buttons_layout)
 
-        self.load_on_startup_checkbox = QCheckBox(tr("Load AI components on startup"))
+        self.load_on_startup_checkbox = QCheckBox(tr("install.load_on_startup"))
         actions_layout.addWidget(self.load_on_startup_checkbox)
 
-        config_group, config_layout, _ = self._create_styled_group(tr("Configuration"))
+        config_group, config_layout, _ = self._create_styled_group(tr("install.configuration"))
         model_layout = QHBoxLayout()
-        model_label = QLabel(tr("Hugging Face Model:"))
+        model_label = QLabel(tr("install.hugging_face_model"))
         self.model_name_edit = CustomLineEdit()
         model_layout.addWidget(model_label)
         model_layout.addWidget(self.model_name_edit)
         config_layout.addLayout(model_layout)
 
+        token_layout = QHBoxLayout()
+        token_label = QLabel(tr("install.hf_token"))
+        self.hf_token_edit = CustomLineEdit()
+        self.hf_token_edit.setPlaceholderText(tr("install.hf_token_placeholder"))
+        self.hf_token_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.hf_token_edit.setClearButtonEnabled(True)
+        token_layout.addWidget(token_label)
+        token_layout.addWidget(self.hf_token_edit)
+        config_layout.addLayout(token_layout)
+        token_hint = QLabel(tr("install.hf_token_hint"))
+        token_hint.setObjectName("captionLabel")
+        token_hint.setWordWrap(True)
+        config_layout.addWidget(token_hint)
+
         buttons_layout = QHBoxLayout()
-        self.load_model_button = CustomButton(None, tr("Load Model"))
+        self.load_model_button = CustomButton(None, tr("install.load_model"))
         self.load_model_button.clicked.connect(self._on_load_model_clicked)
-        self.reset_button = CustomButton(None, tr("Reset to Default"))
+        self.reset_button = CustomButton(None, tr("install.reset_to_default"))
         self.reset_button.clicked.connect(self._reset_model_name)
         buttons_layout.addWidget(self.load_model_button)
         buttons_layout.addWidget(self.reset_button)
         config_layout.addLayout(buttons_layout)
 
-        log_group, log_layout, _ = self._create_styled_group(tr("Terminal Output"))
+        log_group, log_layout, _ = self._create_styled_group(tr("install.terminal_output"))
 
         log_container = QFrame()
         log_container.setObjectName("logOutputContainer")
-
-        log_container.setStyleSheet("""
-            QFrame#logOutputContainer {
-                border: 1px solid @dialog.border;
-                border-radius: 6px;
-                background-color: @dialog.input.background;
-            }
-        """.replace("@dialog.border", self._theme_manager.get_color("dialog.border").name())
-           .replace("@dialog.input.background", self._theme_manager.get_color("dialog.input.background").name()))
 
         container_layout = QVBoxLayout(log_container)
         container_layout.setContentsMargins(5, 5, 5, 5)
 
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
-
-        self.log_output.setStyleSheet("border: none; background: transparent;")
 
         self.log_output.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.log_output.viewport().setCursor(Qt.CursorShape.ArrowCursor)
@@ -158,11 +160,11 @@ class InstallDialog(QDialog):
         setup_dialog_scaffold(
             self,
             main_layout,
-            ok_text=tr("OK"),
-            cancel_text=tr("Close"),
+            ok_text=tr("common.ok"),
+            cancel_text=tr("common.close"),
             show_cancel_button=True,
         )
-        self.cancel_button.setText(tr("Close"))
+        self.cancel_button.setText(tr("common.close"))
 
         self.load_on_startup_checkbox.setChecked(settings.get("load_on_startup", True))
         self.model_name_edit.setText(
@@ -170,6 +172,7 @@ class InstallDialog(QDialog):
                 "tokenizer_model", self._settings_manager.get_default_tokenizer_model()
             )
         )
+        self.hf_token_edit.setText(settings.get("hf_token", "") or "")
 
         self.model_name_edit.textChanged.connect(self._on_model_name_changed)
 
@@ -204,14 +207,14 @@ class InstallDialog(QDialog):
             status_text = message
             color = "#FFA500"
         elif is_installed and is_loaded:
-            status_text = tr("Installed (active)")
+            status_text = tr("install.installed_active")
             color = "#00B300"
         elif is_installed and not is_loaded:
 
-            status_text = tr("Installed (model not loaded)")
+            status_text = tr("install.installed_not_loaded")
             color = "#00B300"
         else:
-            status_text = tr("Not installed")
+            status_text = tr("install.not_installed")
             color = "#D70000"
 
         self.status_label.clear()
@@ -236,11 +239,11 @@ class InstallDialog(QDialog):
 
             if is_installed and not is_loaded and self.model_in_cache and model_name:
                 self.loaded_model_label.setText(
-                    f'<b style="color:#00B300;">{model_name} ({tr("in cache")})</b>'
+                    f'<b style="color:#00B300;">{model_name} ({tr("install.in_cache")})</b>'
                 )
             else:
                 self.loaded_model_label.setText(
-                    f'<b style="color:#D70000;">{tr("None")}</b>'
+                    f'<b style="color:#D70000;">{tr("common.none")}</b>'
                 )
             self.loaded_model_label.show()
 
@@ -251,6 +254,7 @@ class InstallDialog(QDialog):
         return {
             "load_on_startup": self.load_on_startup_checkbox.isChecked(),
             "tokenizer_model": self.model_name_edit.text().strip(),
+            "hf_token": self.hf_token_edit.text().strip(),
         }
 
     def set_actions_enabled(self, enabled: bool):
@@ -260,11 +264,9 @@ class InstallDialog(QDialog):
         self.ok_button.setEnabled(enabled)
 
     def _setup_terminal_styling(self):
-        """Sets up terminal styling as in main window."""
         try:
-            theme_manager = ThemeManager.get_instance()
-            info_color = theme_manager.get_color("dialog.text").name()
-            error_color = "#D70000" if theme_manager.is_dark() else "#FF0000"
+            info_color = self._theme_manager.get_color("dialog.text").name()
+            error_color = "#D70000" if self._theme_manager.is_dark() else "#FF0000"
             status_color = "#9E9E9E"
 
             stylesheet = f"""
@@ -339,31 +341,24 @@ class InstallDialog(QDialog):
         return group_widget, content_layout, title_label
 
     def _on_load_model_clicked(self):
-        """Handles load model button click."""
         model_name = self.model_name_edit.text().strip()
         if model_name:
             self.load_model_triggered.emit(model_name)
         else:
-            self.append_log(tr("Error: Model name cannot be empty"))
+            self.append_log(tr("install.model_name_empty"))
 
     def _on_model_name_changed(self):
-        """Handles model name change."""
 
         self._update_cache_status()
 
     def _update_cache_status(self):
-        """Updates cache status for current model."""
-        if not self.is_installed:
+        if not self.is_installed or self._tokenizer_service is None:
             return
 
         try:
-            from src.core.application.tokenizer_service import TokenizerService
-
-            tokenizer_service = TokenizerService()
-
             model_name = self.model_name_edit.text().strip()
             if model_name:
-                cache_info = tokenizer_service.check_model_cache(model_name)
+                cache_info = self._tokenizer_service.check_model_cache(model_name)
                 model_in_cache = cache_info.get("available", False)
                 self.model_in_cache = model_in_cache
 
@@ -377,23 +372,19 @@ class InstallDialog(QDialog):
             pass
 
     def _update_ui_elements(self):
-        """Updates UI elements based on current status."""
 
         self.remove_button.setEnabled(self.is_installed and self.model_in_cache)
 
     def mousePressEvent(self, event: QMouseEvent):
-        """Removes focus from input fields when clicking on empty area."""
         self.clear_input_focus()
         super().mousePressEvent(event)
 
     def clear_input_focus(self):
-        """Removes focus if it's set on QLineEdit."""
         focused_widget = self.focusWidget()
         if focused_widget and isinstance(focused_widget, QLineEdit):
             focused_widget.clearFocus()
 
     def refresh_theme_styles(self):
-        """Forces dialog styles to update."""
         self.style().unpolish(self)
         self.style().polish(self)
         self.update()

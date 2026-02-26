@@ -1,9 +1,4 @@
-"""
-Output formatter for CLI.
 
-Provides formatted output for console display including tables,
-progress bars, and colored text.
-"""
 
 import sys
 from typing import Any, Dict, List, Optional
@@ -21,65 +16,47 @@ except ImportError:
     Style = DummyColor()
 
 class OutputFormatter:
-    """Formats output for console display."""
 
     def __init__(self, use_colors: bool = True):
-        """
-        Initialize formatter.
-
-        Args:
-            use_colors: Whether to use colored output
-        """
         self.use_colors = use_colors and COLORAMA_AVAILABLE
         if self.use_colors:
             colorama.init(autoreset=True)
 
     def _colorize(self, text: str, color: str) -> str:
-        """Apply color to text if colors are enabled."""
         if self.use_colors and color:
             return f"{color}{text}{Style.RESET_ALL}"
         return text
 
     def success(self, text: str) -> str:
-        """Format success message."""
         return self._colorize(text, Fore.GREEN)
 
     def error(self, text: str) -> str:
-        """Format error message."""
         return self._colorize(text, Fore.RED)
 
     def warning(self, text: str) -> str:
-        """Format warning message."""
         return self._colorize(text, Fore.YELLOW)
 
     def info(self, text: str) -> str:
-        """Format info message."""
         return self._colorize(text, Fore.CYAN)
 
     def bold(self, text: str) -> str:
-        """Format bold text."""
         if self.use_colors:
             return f"{Style.BRIGHT}{text}{Style.RESET_ALL}"
         return text
 
     def print_success(self, text: str):
-        """Print success message."""
         print(self.success(text))
 
     def print_error(self, text: str):
-        """Print error message."""
         print(self.error(text), file=sys.stderr)
 
     def print_warning(self, text: str):
-        """Print warning message."""
         print(self.warning(text))
 
     def print_info(self, text: str):
-        """Print info message."""
         print(self.info(text))
 
     def print_bold(self, text: str):
-        """Print bold text."""
         print(self.bold(text))
 
     def print_table(self, headers: List[str], rows: List[List[str]],
@@ -146,12 +123,6 @@ class OutputFormatter:
             print()
 
     def print_chat_info(self, chat_stats: Dict[str, Any]) -> None:
-        """
-        Print chat information in formatted table.
-
-        Args:
-            chat_stats: Chat statistics dictionary
-        """
         print()
         print(self.bold("📊 Chat Information"))
         print("=" * 50)
@@ -194,12 +165,6 @@ class OutputFormatter:
         print()
 
     def print_analysis_results(self, analysis_result) -> None:
-        """
-        Print analysis results in formatted table.
-
-        Args:
-            analysis_result: Analysis result object
-        """
         print()
         print(self.bold("📈 Analysis Results"))
         print("=" * 50)
@@ -217,12 +182,6 @@ class OutputFormatter:
         print()
 
     def print_file_validation(self, validation_result: Dict[str, Any]) -> None:
-        """
-        Print file validation results.
-
-        Args:
-            validation_result: Validation result dictionary
-        """
         print()
         print(self.bold("📁 File Validation"))
         print("=" * 30)

@@ -2,9 +2,8 @@ from PyQt6.QtCore import QRectF, Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QLineEdit
 
-from ...managers.theme_manager import ThemeManager
-
-from ..helpers.underline_painter import UnderlineConfig, draw_bottom_underline
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.helpers.underline_painter import UnderlineConfig, draw_bottom_underline
 
 class CustomLineEdit(QLineEdit):
     RADIUS = 6

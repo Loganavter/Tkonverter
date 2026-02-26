@@ -13,7 +13,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QBrush, QColor, QFontMetrics, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import QRadioButton, QSizePolicy
 
-from ...managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class FluentRadioButton(QRadioButton):
     INDICATOR_SIZE = 20

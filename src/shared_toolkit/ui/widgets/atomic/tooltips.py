@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ...managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 
 class PathTooltip(QWidget):
     _instance = None

@@ -1,21 +1,19 @@
 from datetime import datetime
+from typing import Optional
 
 from src.core.conversion.context import ConversionContext
 from src.core.analysis.tree_identity import TreeNodeIdentity
 from src.resources.translations import tr
 
-AGGREGATION_THRESHOLD_PERCENT = 7.5
+AGGREGATION_THRESHOLD_PERCENT = 2.0
 BASE_MAX_CHILDREN = 35
 MIN_VISIBLE_CHILDREN = 5
-ROOT_MAX_CHILDREN = 5
+
+ROOT_MAX_CHILDREN = 12
+
+MIN_ANGLE_DEG_FROM_ROOT = 2.0
 
 class TreeNode:
-    """
-    Узел древа анализа.
-
-    ВАЖНО: Отключение узлов работает только на уровне leaf-нодов (дней).
-    Родительские узлы автоматически пересчитывают значения при отключении дочерних.
-    """
 
     def __init__(self, name, value=0.0, parent=None, date_level=None, node_id=None):
         self.name = name
@@ -32,12 +30,6 @@ class TreeNode:
         node.parent = self
 
     def validate_tree_integrity(self) -> bool:
-        """
-        Проверяет целостность связей parent/children в древе.
-
-        Returns:
-            bool: True если все связи корректны
-        """
 
         for child in self.children:
             if child.parent != self:
@@ -56,12 +48,6 @@ class TreeNode:
         return True
 
     def get_all_leaf_nodes(self) -> list:
-        """
-        Получает все leaf-узлы (дни) в поддереве.
-
-        Returns:
-            list[TreeNode]: Список всех leaf-узлов
-        """
         leaf_nodes = []
 
         for child in self.children:
@@ -76,12 +62,6 @@ class TreeNode:
         return leaf_nodes
 
     def get_descendant_day_nodes(self) -> list:
-        """
-        Получает все day-узлы в поддереве.
-
-        Returns:
-            list[TreeNode]: Список всех узлов с date_level="day"
-        """
         day_nodes = []
 
         for child in self.children:
@@ -98,9 +78,22 @@ class TreeNode:
 
         return day_nodes
 
+def _get_root_value(node: TreeNode) -> float:
+    n = node
+    while n.parent is not None:
+        n = n.parent
+    return float(n.value) if n.value > 0 else 1.0
+
 def aggregate_children_for_view(
-    node: TreeNode, force_full_detail: bool = False
+    node: TreeNode,
+    force_full_detail: bool = False,
+    use_global_total: Optional[bool] = None,
 ) -> list[TreeNode]:
+    """
+    use_global_total: если True — порог угла и «прочее» от глобального корня (общий вид).
+    Если False — от значения текущего узла (вид внутри года/месяца). Если None — как раньше:
+    корень от глобального, остальные уровни от node.value.
+    """
 
     if node.date_level == "others":
         return sorted(node.aggregated_children, key=lambda n: n.value, reverse=True)
@@ -111,40 +104,52 @@ def aggregate_children_for_view(
     if force_full_detail:
         return sorted(node.children, key=lambda n: n.value, reverse=True)
 
-    if not node.parent:
+    if use_global_total is True:
+        total_for_angle = _get_root_value(node)
+    elif use_global_total is False:
+        total_for_angle = float(node.value) if node.value > 0 else 1.0
+    else:
+        if node.parent is None:
+            total_for_angle = _get_root_value(node)
+        else:
+            total_for_angle = float(node.value) if node.value > 0 else 1.0
+    children_sorted = sorted(node.children, key=lambda n: n.value, reverse=True)
 
+    angle_from_root = lambda c: (c.value / total_for_angle) * 360.0
+    above_threshold = [c for c in children_sorted if angle_from_root(c) >= MIN_ANGLE_DEG_FROM_ROOT]
+    below_threshold = [c for c in children_sorted if angle_from_root(c) < MIN_ANGLE_DEG_FROM_ROOT]
+
+    if not node.parent:
         dynamic_max_children = ROOT_MAX_CHILDREN
     else:
-
         share = node.value / node.parent.value if node.parent.value > 0 else 0
         dynamic_max_children = int(
             MIN_VISIBLE_CHILDREN + (BASE_MAX_CHILDREN - MIN_VISIBLE_CHILDREN) * share
         )
 
-    children_sorted = sorted(node.children, key=lambda n: n.value, reverse=True)
+    visible_nodes = list(above_threshold)
+    nodes_to_aggregate = list(below_threshold)
 
-    if len(children_sorted) <= dynamic_max_children:
-        return children_sorted
-
-    if len(children_sorted) == dynamic_max_children + 1:
-        return children_sorted
-
-    num_to_show = dynamic_max_children - 1
-    visible_nodes = children_sorted[:num_to_show]
-    nodes_to_aggregate = children_sorted[num_to_show:]
+    if not nodes_to_aggregate:
+        return visible_nodes
 
     aggregated_value = sum(n.value for n in nodes_to_aggregate)
-
-    if aggregated_value > 0:
-        others_name = tr('{count} others').format(count=len(nodes_to_aggregate))
-        others_node = TreeNode(others_name, aggregated_value, parent=node, date_level="others",
-                             node_id=TreeNodeIdentity.generate_others_id(node.node_id))
-        others_node.aggregated_children = nodes_to_aggregate
-
-        return visible_nodes + [others_node]
-    else:
-
+    if aggregated_value <= 0:
         return visible_nodes
+
+    if not visible_nodes:
+        return []
+
+    others_name = tr('{count} others').format(count=len(nodes_to_aggregate))
+    others_node = TreeNode(
+        others_name,
+        aggregated_value,
+        parent=node,
+        date_level="others",
+        node_id=TreeNodeIdentity.generate_others_id(node.node_id),
+    )
+    others_node.aggregated_children = nodes_to_aggregate
+    return visible_nodes + [others_node]
 
 class TokenAnalyzer:
     def __init__(self, date_hierarchy: dict, config: dict, unit: str):

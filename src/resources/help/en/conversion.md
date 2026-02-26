@@ -23,3 +23,13 @@ The profile affects how messages are formatted. In most cases, **Auto-detect pro
 
 - **Show reactions:** Includes message reactions (e.g., 👍 2).
 - **Optimization:** A mode for channels that groups consecutive messages from the same author to save tokens.
+
+### Anonymization
+
+The anonymization module lets you hide or mask personal data before export or before sending a chat to an LLM: participant names and links.
+
+- **Enabling:** Open the **Anonymization** dialog from the UI and turn anonymization on. Settings are saved and applied on convert and export.
+- **Names:** When name hiding is on, display names are replaced by a mask. The mask format is configurable (e.g. `[NAME {index}]` or `User {index}`), where `{index}` is the participant’s index. You can add custom rules for specific names.
+- **Links:** Links in messages can be hidden or replaced with a single placeholder, show domain only, use indexed placeholders (`[LINK 1]`, `[LINK 2]`, etc.), or a custom format. Presets and custom filters by domain or regex are available.
+- **Presets:** Save sets of options (name format, link format, filters) as presets and switch between them as needed.
+- **CLI:** Anonymization is configured via the JSON config: an `anonymization` section with `enabled`, `hide_links`, `hide_names`, `name_mask_format`, `link_mask_mode`, `link_mask_format`, and optionally `custom_names`, `custom_filters`. See the CLI documentation for details.

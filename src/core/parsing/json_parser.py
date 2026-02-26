@@ -1,9 +1,4 @@
-"""
-JSON parser for converting Telegram data to domain models.
 
-This module is responsible for parsing Telegram export JSON files
-and creating type-safe domain objects.
-"""
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -23,13 +18,11 @@ from src.core.domain.models import (
 )
 
 def parse_user_from_dict(user_data: Dict[str, Any]) -> User:
-    """Creates User object from dictionary."""
     return User(
         id=str(user_data.get("from_id", "")), name=str(user_data.get("from", ""))
     )
 
 def parse_reaction_from_dict(reaction_data: Dict[str, Any]) -> Reaction:
-    """Creates Reaction object from dictionary."""
     authors = []
     for author_data in reaction_data.get("recent", []):
         try:
@@ -45,7 +38,7 @@ def parse_reaction_from_dict(reaction_data: Dict[str, Any]) -> Reaction:
 
     if reaction_data.get("type") == "custom_emoji":
 
-        from resources.translations import tr
+        from src.resources.translations import tr
         emoji_text = f"{tr('Custom')} {tr('Emoji')}"
     else:
 
@@ -58,7 +51,6 @@ def parse_reaction_from_dict(reaction_data: Dict[str, Any]) -> Reaction:
     )
 
 def parse_media_from_dict(msg_data: Dict[str, Any]) -> Optional[MediaInfo]:
-    """Creates MediaInfo object from message data."""
 
     if "photo" in msg_data:
         return MediaInfo(
@@ -84,7 +76,6 @@ def parse_media_from_dict(msg_data: Dict[str, Any]) -> Optional[MediaInfo]:
     )
 
 def parse_date_string(date_str: str) -> datetime:
-    """Parses date string to datetime object."""
     try:
         return datetime.fromisoformat(date_str)
     except ValueError:
@@ -95,7 +86,6 @@ def parse_date_string(date_str: str) -> datetime:
             return datetime.now()
 
 def parse_todo_list_from_dict(todo_data: Dict[str, Any]) -> TodoList:
-    """Creates TodoList object from dictionary."""
     items = []
     for item_data in todo_data.get("items", []):
         items.append(
@@ -110,13 +100,11 @@ def parse_todo_list_from_dict(todo_data: Dict[str, Any]) -> TodoList:
     )
 
 def parse_paid_media_from_dict(msg_data: Dict[str, Any]) -> PaidMedia:
-    """Creates PaidMedia object from dictionary."""
     return PaidMedia(
         paid_stars_amount=msg_data.get("paid_stars_amount", 0)
     )
 
 def parse_message_from_dict(msg_data: Dict[str, Any]) -> Message:
-    """Creates Message object from dictionary."""
 
     author = User(
         id=str(msg_data.get("from_id", "")), name=str(msg_data.get("from", ""))
@@ -146,7 +134,11 @@ def parse_message_from_dict(msg_data: Dict[str, Any]) -> Message:
         "venue",
         "dice",
         "game_information",
+        "game_title",
+        "game_description",
+        "game_link",
         "invoice_information",
+        "paid_stars_amount",
         "place_name",
         "address",
     ]:
@@ -181,11 +173,21 @@ def parse_message_from_dict(msg_data: Dict[str, Any]) -> Message:
     if "paid_stars_amount" in msg_data:
         paid_media = parse_paid_media_from_dict(msg_data)
 
+    raw_text = msg_data.get("text", "")
+    text_entities = msg_data.get("text_entities")
+    if isinstance(raw_text, list):
+        parsed_text = raw_text
+    elif isinstance(text_entities, list) and text_entities:
+
+        parsed_text = text_entities
+    else:
+        parsed_text = raw_text
+
     return Message(
         id=msg_data.get("id", 0),
         author=author,
         date=date,
-        text=msg_data.get("text", ""),
+        text=parsed_text,
         reactions=reactions,
         reply_to_id=msg_data.get("reply_to_message_id"),
         edited=edited,
@@ -202,37 +204,48 @@ def parse_message_from_dict(msg_data: Dict[str, Any]) -> Message:
     )
 
 def parse_service_message_from_dict(msg_data: Dict[str, Any]) -> ServiceMessage:
-    """Creates ServiceMessage object from dictionary."""
     media = None
+    action = msg_data.get("action") or "custom_action"
+    title = msg_data.get("title")
 
-    if msg_data.get("action") == "suggest_profile_photo" and "photo" in msg_data:
+    if not title:
+        title = msg_data.get("information_text") or msg_data.get("text")
+
+    if action == "suggest_profile_photo" and "photo" in msg_data:
         media = parse_media_from_dict(msg_data)
+
+    excluded_keys = {
+        "id",
+        "type",
+        "date",
+        "date_unixtime",
+        "action",
+        "actor",
+        "title",
+        "members",
+        "period_seconds",
+        "text",
+        "information_text",
+    }
+    extra_data = {
+        key: value
+        for key, value in msg_data.items()
+        if key not in excluded_keys and value is not None
+    }
 
     return ServiceMessage(
         id=msg_data.get("id", 0),
         date=parse_date_string(msg_data.get("date", "")),
-        action=msg_data.get("action", ""),
+        action=action,
         actor=msg_data.get("actor"),
-        title=msg_data.get("title"),
+        title=title,
         members=msg_data.get("members", []),
-        period_seconds=msg_data.get("period_seconds"),
+        period_seconds=msg_data.get("period_seconds", msg_data.get("period")),
         media=media,
+        extra_data=extra_data,
     )
 
 def parse_chat_from_dict(data: Dict[str, Any]) -> Chat:
-    """
-    Main parsing function - converts JSON dictionary to Chat object.
-
-    Args:
-        data: Dictionary with chat data from Telegram JSON file
-
-    Returns:
-        Chat: Domain chat object
-
-    Raises:
-        ValueError: If data is incorrect
-        KeyError: If required fields are missing
-    """
     if not isinstance(data, dict):
         raise ValueError("Data must be a dictionary")
 
@@ -264,7 +277,10 @@ def parse_chat_from_dict(data: Dict[str, Any]) -> Chat:
     chat_name = data.get("name", "Unnamed Chat")
 
     return Chat(
-        name=chat_name, type=chat_type, messages=messages
+        name=chat_name,
+        type=chat_type,
+        messages=messages,
+        chat_id=data.get("id") if isinstance(data.get("id"), int) else None,
     )
 
 def _detect_chat_type(
@@ -306,15 +322,6 @@ def _detect_chat_type(
         return "group"
 
 def validate_chat_data(data: Dict[str, Any]) -> List[str]:
-    """
-    Validates chat data and returns list of found issues.
-
-    Args:
-        data: Chat data for validation
-
-    Returns:
-        List[str]: List of found issue descriptions
-    """
     issues = []
 
     if not isinstance(data, dict):
@@ -332,15 +339,6 @@ def validate_chat_data(data: Dict[str, Any]) -> List[str]:
     return issues
 
 def get_parsing_statistics(data: Dict[str, Any]) -> Dict[str, int]:
-    """
-    Returns parsing statistics without actually creating objects.
-
-    Args:
-        data: Chat data
-
-    Returns:
-        Dict[str, int]: Statistics (message count, service messages, etc.)
-    """
     stats = {
         "total_messages": 0,
         "regular_messages": 0,

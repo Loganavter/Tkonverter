@@ -1,35 +1,15 @@
-"""
-Configuration loader for CLI.
 
-Handles loading and merging of configuration files with CLI arguments.
-"""
 
 import json
 import os
 from typing import Any, Dict, Optional
 
 class ConfigLoader:
-    """Loads and merges configuration from files and CLI arguments."""
 
     def __init__(self):
-        """Initialize config loader."""
         pass
 
     def load_config_file(self, config_path: str) -> Dict[str, Any]:
-        """
-        Load configuration from JSON file.
-
-        Args:
-            config_path: Path to configuration file
-
-        Returns:
-            Dict[str, Any]: Configuration dictionary
-
-        Raises:
-            FileNotFoundError: If config file doesn't exist
-            json.JSONDecodeError: If config file is invalid JSON
-            ValueError: If config file contains invalid values
-        """
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
@@ -61,15 +41,6 @@ class ConfigLoader:
         return merged
 
     def args_to_config(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Convert CLI arguments to configuration dictionary.
-
-        Args:
-            args: Parsed CLI arguments
-
-        Returns:
-            Dict[str, Any]: Configuration dictionary
-        """
         config = {}
 
         if hasattr(args, 'profile') and args.profile:
@@ -116,12 +87,6 @@ class ConfigLoader:
         return config
 
     def get_default_config(self) -> Dict[str, Any]:
-        """
-        Get default configuration.
-
-        Returns:
-            Dict[str, Any]: Default configuration
-        """
         return {
             "profile": "group",
             "show_time": True,
@@ -165,15 +130,6 @@ class ConfigLoader:
         return final_config
 
     def validate_config(self, config: Dict[str, Any]) -> list[str]:
-        """
-        Validate configuration dictionary.
-
-        Args:
-            config: Configuration to validate
-
-        Returns:
-            list[str]: List of validation issues (empty if valid)
-        """
         issues = []
 
         required_fields = ["profile", "show_time", "show_reactions"]

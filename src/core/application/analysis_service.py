@@ -1,91 +1,159 @@
-"""
-Service for chat analysis.
 
-Responsible for counting tokens/characters, building analysis tree
-and other chat analytics.
-"""
 
+import logging
+import threading
 from collections import defaultdict
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Optional, Set
 
 from src.core.analysis.tree_analyzer import TokenAnalyzer, TreeNode
-from src.core.analysis.tree_identity import TreeNodeIdentity
-from src.core.application.anonymizer_service import AnonymizerService
+from src.core.application.export_metrics_service import ExportMetricsService
 from src.core.conversion.context import ConversionContext
-from src.core.conversion.domain_adapters import chat_to_dict, service_message_to_dict
-from src.core.conversion.formatters.service_formatter import format_service_message
-from src.core.conversion.main_converter import generate_plain_text, _create_anonymization_config
+from src.core.conversion.main_converter import _LegacyAnonymizerAdapter
 from src.core.conversion.utils import process_text_to_plain
+from src.core.domain.anonymization import AnonymizationConfig, LinkMaskMode
 from src.core.domain.models import AnalysisResult, Chat, Message, ServiceMessage
 
+logger = logging.getLogger(__name__)
+
 class AnalysisService:
-    """Service for chat analysis."""
 
-    def __init__(self):
-        pass
+    def __init__(self, export_metrics_service: Optional[ExportMetricsService] = None):
+        self._status_listeners: list[Callable[[str], None]] = []
+        self._error_listeners: list[Callable[[str], None]] = []
+        self._listeners_lock = threading.Lock()
+        self._export_metrics_service = export_metrics_service or ExportMetricsService()
 
-    def _setup_context_with_anonymizer(self, config: Dict[str, Any]) -> ConversionContext:
-        """Helper to create context with correctly configured anonymizer."""
-        context = ConversionContext(config=config)
+    def add_status_listener(self, callback: Callable[[str], None]):
+        with self._listeners_lock:
+            if callback not in self._status_listeners:
+                self._status_listeners.append(callback)
 
-        anonymization_config_dict = config.get("anonymization", {})
-        if anonymization_config_dict:
+    def remove_status_listener(self, callback: Callable[[str], None]):
+        with self._listeners_lock:
+            if callback in self._status_listeners:
+                self._status_listeners.remove(callback)
+
+    def add_error_listener(self, callback: Callable[[str], None]):
+        with self._listeners_lock:
+            if callback not in self._error_listeners:
+                self._error_listeners.append(callback)
+
+    def remove_error_listener(self, callback: Callable[[str], None]):
+        with self._listeners_lock:
+            if callback in self._error_listeners:
+                self._error_listeners.remove(callback)
+
+    def _emit_status(self, message: str):
+        with self._listeners_lock:
+            callbacks = tuple(self._status_listeners)
+        for callback in callbacks:
             try:
-                anon_config = _create_anonymization_config(anonymization_config_dict)
-
-                if anon_config.enabled:
-                    context.anonymizer = AnonymizerService(anon_config)
+                callback(message)
             except Exception:
-                pass
+                logger.debug("AnalysisService status listener failed", exc_info=True)
+
+    def _emit_error(self, message: str):
+        with self._listeners_lock:
+            callbacks = tuple(self._error_listeners)
+        for callback in callbacks:
+            try:
+                callback(message)
+            except Exception:
+                logger.debug("AnalysisService error listener failed", exc_info=True)
+
+    def _build_processing_context(self, chat: Chat, config: Dict[str, Any]) -> ConversionContext:
+        context = ConversionContext(config=config)
+        anonymization_cfg = config.get("anonymization", {}) or {}
+        if not anonymization_cfg.get("enabled", False):
+            return context
+
+        name_mask = anonymization_cfg.get("name_mask_format", "[ИМЯ {index}]")
+        raw_mode = anonymization_cfg.get("link_mask_mode", "simple")
+        try:
+            link_mode = LinkMaskMode(raw_mode)
+        except ValueError:
+            link_mode = LinkMaskMode.SIMPLE
+
+        link_mask_format = anonymization_cfg.get("link_mask_format", "[ССЫЛКА {index}]")
+        adapter_config = AnonymizationConfig(
+            enabled=True,
+            hide_links=anonymization_cfg.get("hide_links", False),
+            hide_names=anonymization_cfg.get("hide_names", False),
+            name_mask_format=name_mask,
+            link_mask_mode=link_mode,
+            link_mask_format=link_mask_format,
+            custom_names=anonymization_cfg.get("custom_names", []),
+        )
+        context.anonymizer = _LegacyAnonymizerAdapter(adapter_config)
+
+        for msg in chat.messages:
+            if isinstance(msg, Message):
+                context.anonymizer.register_user(user_id=msg.author.id, name=msg.author.name)
+                if msg.forwarded_from:
+                    context.anonymizer.register_user(name=msg.forwarded_from)
+                for reaction in msg.reactions:
+                    for author in reaction.authors:
+                        context.anonymizer.register_user(user_id=author.id, name=author.name)
+            elif isinstance(msg, ServiceMessage):
+                if msg.actor:
+                    context.anonymizer.register_user(name=msg.actor)
+                for member in msg.members:
+                    context.anonymizer.register_user(name=member)
+
+        context.anonymizer._rebuild_names_regex()
         return context
 
     def calculate_character_stats(
         self,
         chat: Chat,
         config: Dict[str, Any],
-        disabled_dates: Set[Tuple[str, str, str]] = None
+        disabled_dates: Optional[Set[Any]] = None,
+        include_memory_disabled_dates: bool = True,
     ) -> AnalysisResult:
         """
         Calculates character statistics in chat.
 
-        ИСПРАВЛЕНО: Считаем символы по сообщениям с учётом оптимизации,
-        но без дополнительных заголовков экспорта.
+        Args:
+            chat: Chat to analyze
+            config: Analysis configuration
+            include_memory_disabled_dates: if False, do not exclude dates from chat memory (for full hierarchy/tree)
+
+        Returns:
+            AnalysisResult: Analysis result with date hierarchy
         """
+        self._emit_status("Подсчет символов...")
         if not chat.messages:
             return AnalysisResult(total_count=0, unit="Characters", date_hierarchy={})
 
-        disabled_dates = disabled_dates or set()
-
-        context = self._setup_context_with_anonymizer(config)
-        date_hierarchy = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
-        total_char_count = 0
+        context = self._build_processing_context(chat, config)
+        normalized_disabled_dates = self._normalize_disabled_dates(disabled_dates)
+        export_metrics = self._export_metrics_service.calculate_character_metrics(
+            chat=chat,
+            config=config,
+            disabled_dates=normalized_disabled_dates,
+            include_memory_disabled_dates=include_memory_disabled_dates,
+        )
         message_char_lengths = []
 
-        prev_msg_dict = None
-        for msg_idx, msg in enumerate(chat.messages):
+        for msg in chat.messages:
+            if not isinstance(msg, Message):
+                continue
+
             try:
 
-                year = str(msg.date.year)
-                month = f"{msg.date.month:02d}"
-                day = f"{msg.date.day:02d}"
-                date_tuple = (year, month, day)
+                plain_text_msg = process_text_to_plain(msg.text, context)
+                char_len = len(plain_text_msg)
 
-                if date_tuple in disabled_dates:
-                    continue
+                if char_len > 0:
+                    year = str(msg.date.year)
+                    month = f"{msg.date.month:02d}"
+                    day = f"{msg.date.day:02d}"
+                    if self._is_date_disabled(year, month, day, normalized_disabled_dates):
+                        continue
 
-                msg_dict = self._message_to_dict(msg)
-
-                char_count = self._count_message_chars_simple(msg_dict, prev_msg_dict, context)
-
-                if char_count > 0:
-                    date_hierarchy[year][month][day] += char_count
-                    message_char_lengths.append(char_count)
-                    total_char_count += char_count
-
-                prev_msg_dict = msg_dict
-
-            except Exception as e:
-
+                    message_char_lengths.append(char_len)
+            except (ValueError, AttributeError) as e:
+                logger.warning(f"Error processing message {msg.id}: {e}")
                 continue
 
         avg_message_length = (
@@ -94,238 +162,91 @@ class AnalysisService:
             else 0
         )
 
-        result = AnalysisResult(
-            total_count=total_char_count,
+        return AnalysisResult(
+            total_count=export_metrics.total_count,
             unit="Characters",
-            date_hierarchy=dict(date_hierarchy),
-            total_characters=total_char_count,
+            date_hierarchy=export_metrics.date_hierarchy,
+            total_characters=export_metrics.total_characters,
             average_message_length=avg_message_length,
         )
-
-        return result
-
-    def _count_message_chars_simple(self, msg_dict: dict, prev_msg_dict: dict, context: ConversionContext) -> int:
-        """
-        Простой подсчёт символов с базовой оптимизацией.
-        Оптимизация = не печатать заголовки от одного автора подряд.
-        """
-        from src.core.conversion.utils import process_text_to_plain
-        from src.resources.translations import tr
-
-        char_count = 0
-
-        print_header = self._should_print_header_simple(msg_dict, prev_msg_dict, context)
-
-        if print_header:
-
-            author = context.get_author_name(msg_dict)
-            time_str = ""
-            if context.config.get("show_time", True):
-                try:
-                    from datetime import datetime
-                    is_edited = "edited" in msg_dict
-                    date_key = "edited" if is_edited else "date"
-                    dt = datetime.fromisoformat(msg_dict[date_key])
-                    time_part = dt.strftime("%H:%M")
-                    edited_part = tr(" (edited)") if is_edited else ""
-                    time_str = f" ({time_part}{edited_part})"
-                except (ValueError, KeyError):
-                    pass
-            char_count += len(f"{author}{time_str}:\n")
-
-        if msg_dict.get("type") == "message":
-            content = process_text_to_plain(msg_dict.get("text", ""), context)
-            if content:
-                char_count += len(content)
-        else:
-
-            char_count += len(f"[Service message: {msg_dict.get('action', 'unknown')}]")
-
-        return char_count
-
-    def _should_print_header_simple(self, msg_dict: dict, prev_msg_dict: dict, context: ConversionContext) -> bool:
-        """
-        Простая логика оптимизации: не печатать заголовок если:
-        1. Нет предыдущего сообщения
-        2. Разные авторы
-        3. Оптимизация выключена
-        4. Разные даты
-        """
-        if not prev_msg_dict:
-            return True
-
-        try:
-            from datetime import datetime
-            current_dt = datetime.fromisoformat(msg_dict["date"])
-            prev_dt = datetime.fromisoformat(prev_msg_dict["date"])
-            if current_dt.date() != prev_dt.date():
-                return True
-        except (ValueError, KeyError):
-            return True
-
-        current_author = context.get_author_name(msg_dict)
-        prev_author = context.get_author_name(prev_msg_dict)
-        if current_author != prev_author:
-            return True
-
-        show_optimization = context.config.get("show_optimization", False)
-        if not show_optimization:
-            return True
-
-        return False
 
     def calculate_token_stats(
         self,
         chat: Chat,
         config: Dict[str, Any],
         tokenizer: Any,
-        disabled_dates: Set[Tuple[str, str, str]] = None
+        disabled_dates: Optional[Set[Any]] = None,
+        include_memory_disabled_dates: bool = True,
     ) -> AnalysisResult:
         """
         Calculates token statistics in chat.
-
-        Добавлена фильтрация по disabled_dates.
 
         Args:
             chat: Chat to analyze
             config: Analysis configuration
             tokenizer: Tokenizer (e.g., from transformers)
-            disabled_dates: Set of disabled dates (year, month, day) to exclude
+            include_memory_disabled_dates: if False, do not exclude dates from chat memory (for full hierarchy/tree)
 
         Returns:
             AnalysisResult: Analysis result with date hierarchy
         """
-
-        if not chat.messages:
+        self._emit_status("Подсчет токенов...")
+        if not chat.messages or not tokenizer:
             return AnalysisResult(total_count=0, unit="tokens", date_hierarchy={})
 
-        if not tokenizer:
-            raise ValueError("Tokenizer is not loaded. Please load a tokenizer first.")
-
-        try:
-            test_tokens = tokenizer.encode("test")
-            if not isinstance(test_tokens, (list, tuple)):
-                raise ValueError("Tokenizer returned invalid result")
-        except Exception as e:
-            raise ValueError(f"Tokenizer is not working properly: {e}")
-
-        disabled_dates = disabled_dates or set()
-
-        context = self._setup_context_with_anonymizer(config)
-        total_tokens = 0
-        total_char_count = 0
-        message_char_lengths = []
-
-        prev_msg_dict = None
-        skipped_messages = 0
-        for msg_idx, msg in enumerate(chat.messages):
-            try:
-
-                year = str(msg.date.year)
-                month = f"{msg.date.month:02d}"
-                day = f"{msg.date.day:02d}"
-                date_tuple = (year, month, day)
-
-                if date_tuple in disabled_dates:
-                    continue
-
-                msg_dict = self._message_to_dict(msg)
-
-                if prev_msg_dict and not self._should_count_message(msg_dict, prev_msg_dict, context, config.get("profile", "group")):
-                    skipped_messages += 1
-                    prev_msg_dict = msg_dict
-                    continue
-
-                if isinstance(msg, Message) and msg.text:
-                    plain_text_msg = process_text_to_plain(msg.text, context)
-                    char_len = len(plain_text_msg)
-                    if char_len > 0:
-                        message_char_lengths.append({"date": msg.date, "length": char_len})
-                        total_char_count += char_len
-
-                elif isinstance(msg, ServiceMessage):
-                    msg_dict = service_message_to_dict(msg)
-                    formatted_message = format_service_message(msg_dict, context)
-                    if formatted_message:
-                        char_len = len(formatted_message)
-                        if char_len > 0:
-                            message_char_lengths.append({"date": msg.date, "length": char_len})
-                            total_char_count += char_len
-
-                prev_msg_dict = msg_dict
-
-            except Exception as e:
-
-                continue
-
-        if total_char_count == 0:
-            return AnalysisResult(total_count=0, unit="tokens", date_hierarchy={})
-
-        try:
-
-            all_text_parts = []
-            prev_msg_dict = None
-            for msg in chat.messages:
-                year = str(msg.date.year)
-                month = f"{msg.date.month:02d}"
-                day = f"{msg.date.day:02d}"
-                date_tuple = (year, month, day)
-
-                if date_tuple in disabled_dates:
-                    continue
-
-                msg_dict = self._message_to_dict(msg)
-
-                if prev_msg_dict and not self._should_count_message(msg_dict, prev_msg_dict, context, config.get("profile", "group")):
-                    skipped_messages += 1
-                    prev_msg_dict = msg_dict
-                    continue
-
-                if isinstance(msg, Message) and msg.text:
-                    plain_text_msg = process_text_to_plain(msg.text, context)
-                    if plain_text_msg:
-                        all_text_parts.append(plain_text_msg)
-                elif isinstance(msg, ServiceMessage):
-                    msg_dict = service_message_to_dict(msg)
-                    formatted_message = format_service_message(msg_dict, context)
-                    if formatted_message:
-                        all_text_parts.append(formatted_message)
-
-                prev_msg_dict = msg_dict
-
-            full_text = "\n".join(all_text_parts)
-            try:
-                tokens = tokenizer.encode(full_text)
-                total_tokens = len(tokens)
-            except Exception as tokenizer_error:
-                raise ValueError(f"Tokenization failed: {tokenizer_error}")
-
-        except Exception as e:
-
-            raise ValueError(f"Analysis failed: {e}")
-
-        if total_tokens <= 0:
-            return AnalysisResult(total_count=0, unit="tokens", date_hierarchy={})
-
-        tokens_per_char = total_tokens / total_char_count
-        date_hierarchy = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
-
-        for item in message_char_lengths:
-            dt = item["date"]
-            year = str(dt.year)
-            month = f"{dt.month:02d}"
-            day = f"{dt.day:02d}"
-            estimated_tokens = item["length"] * tokens_per_char
-            date_hierarchy[year][month][day] += estimated_tokens
-
-        result = AnalysisResult(
-            total_count=total_tokens,
-            unit="tokens",
-            date_hierarchy=dict(date_hierarchy),
-            total_characters=total_char_count,
+        export_metrics = self._export_metrics_service.calculate_token_metrics(
+            chat=chat,
+            config=config,
+            tokenizer=tokenizer,
+            disabled_dates=self._normalize_disabled_dates(disabled_dates),
+            include_memory_disabled_dates=include_memory_disabled_dates,
         )
 
-        return result
+        if export_metrics.total_count == 0:
+            return AnalysisResult(
+                total_count=0, unit="tokens", date_hierarchy={}
+            )
+
+        return AnalysisResult(
+            total_count=export_metrics.total_count,
+            unit="tokens",
+            date_hierarchy=export_metrics.date_hierarchy,
+            total_characters=export_metrics.total_characters,
+        )
+
+    def get_full_date_hierarchy_for_calendar(
+        self,
+        chat: Chat,
+        config: Dict[str, Any],
+        tokenizer: Any = None,
+        unit: str = "Characters",
+    ) -> Dict[str, Dict[str, Dict[str, float]]]:
+        """
+        Returns date hierarchy with all days included (no disabled-date filtering).
+        Used by the calendar so that each day shows its real symbol/token count:
+        if we used the filtered hierarchy (analysis_result.date_hierarchy), disabled
+        days would have 0 and the calendar would fall back to message_count, showing
+        e.g. "1" (one message) instead of the actual ~50 characters.
+        """
+        if not chat.messages:
+            return {}
+        use_tokens = unit == "tokens" and tokenizer is not None
+        if use_tokens:
+            result = self._export_metrics_service.calculate_token_metrics(
+                chat=chat,
+                config=config,
+                tokenizer=tokenizer,
+                disabled_dates=set(),
+                include_memory_disabled_dates=False,
+            )
+        else:
+            result = self._export_metrics_service.calculate_character_metrics(
+                chat=chat,
+                config=config,
+                disabled_dates=set(),
+                include_memory_disabled_dates=False,
+            )
+        return result.date_hierarchy or {}
 
     def build_analysis_tree(
         self, analysis_result: AnalysisResult, config: Dict[str, Any]
@@ -340,10 +261,11 @@ class AnalysisService:
         Returns:
             TreeNode: Root node of the analysis tree
         """
+        self._emit_status("Построение дерева анализа...")
         if not analysis_result.date_hierarchy or analysis_result.total_count <= 0:
             from src.resources.translations import tr
 
-            return TreeNode(tr("No Data"), 0)
+            return TreeNode(tr("analysis.no_data"), 0)
 
         try:
             analyzer = TokenAnalyzer(
@@ -355,21 +277,124 @@ class AnalysisService:
             return analyzer.build_analysis_tree(total_count=analysis_result.total_count)
 
         except Exception as e:
-
+            logger.error(f"Error building analysis tree: {e}")
+            self._emit_error(f"Ошибка построения дерева анализа: {e}")
             from src.resources.translations import tr
 
-            return TreeNode(tr("Error"), 0)
+            return TreeNode(tr("common.error"), 0)
+
+    def recalculate_with_filters(
+        self,
+        chat: Chat,
+        config: Dict[str, Any],
+        tokenizer: Any,
+        disabled_dates: Set[Any],
+    ) -> tuple[AnalysisResult, TreeNode]:
+        """
+        Recalculates with full hierarchy (disabled_dates ignored for hierarchy)
+        so the tree contains all days. Returns (result, tree).
+        Filtered total is computed by the caller via get_filtered_count().
+        """
+        from src.resources.translations import tr
+        if not chat.messages:
+            empty = AnalysisResult(total_count=0, unit="Characters", date_hierarchy={})
+            return empty, TreeNode(tr("analysis.no_data"), 0)
+        use_tokens = tokenizer is not None
+        if use_tokens:
+            em = self._export_metrics_service.calculate_token_metrics(
+                chat=chat,
+                config=config,
+                tokenizer=tokenizer,
+                disabled_dates=set(),
+                include_memory_disabled_dates=False,
+            )
+            result = AnalysisResult(
+                total_count=em.total_count,
+                unit="tokens",
+                date_hierarchy=em.date_hierarchy,
+                total_characters=em.total_characters,
+            )
+        else:
+            em = self._export_metrics_service.calculate_character_metrics(
+                chat=chat,
+                config=config,
+                disabled_dates=set(),
+                include_memory_disabled_dates=False,
+            )
+            result = AnalysisResult(
+                total_count=em.total_count,
+                unit="Characters",
+                date_hierarchy=em.date_hierarchy,
+                total_characters=em.total_characters,
+            )
+        tree = self.build_analysis_tree(result, config)
+        return result, tree
+
+    def _find_most_active_user(self, chat: Chat) -> Optional[Any]:
+        if not chat.messages:
+            return None
+
+        user_message_counts = {}
+
+        for msg in chat.messages:
+            if isinstance(msg, Message):
+                user_id = msg.author.id
+                if user_id in user_message_counts:
+                    user_message_counts[user_id]["count"] += 1
+                else:
+                    user_message_counts[user_id] = {"count": 1, "user": msg.author}
+
+        if not user_message_counts:
+            return None
+
+        most_active_data = max(user_message_counts.values(), key=lambda x: x["count"])
+        return most_active_data["user"]
+
+    def _normalize_disabled_dates(
+        self, disabled_dates: Optional[Set[Any]]
+    ) -> Set[str]:
+        """
+        Converts incoming disabled date representations to YYYY-MM-DD strings.
+        Accepts strings, tuples/lists and objects with year/month/day attributes.
+        """
+        if not disabled_dates:
+            return set()
+
+        normalized: Set[str] = set()
+        for item in disabled_dates:
+            if isinstance(item, str):
+                cleaned = item.strip()
+                if cleaned:
+                    normalized.add(cleaned)
+                continue
+
+            if isinstance(item, (tuple, list)) and len(item) >= 3:
+                try:
+                    y, m, d = int(item[0]), int(item[1]), int(item[2])
+                    normalized.add(f"{y:04d}-{m:02d}-{d:02d}")
+                except (TypeError, ValueError):
+                    continue
+                continue
+
+            if all(hasattr(item, attr) for attr in ("year", "month", "day")):
+                try:
+                    y = int(getattr(item, "year"))
+                    m = int(getattr(item, "month"))
+                    d = int(getattr(item, "day"))
+                    normalized.add(f"{y:04d}-{m:02d}-{d:02d}")
+                except (TypeError, ValueError):
+                    continue
+
+        return normalized
+
+    def _is_date_disabled(
+        self, year: str, month: str, day: str, normalized_disabled_dates: Set[str]
+    ) -> bool:
+        if not normalized_disabled_dates:
+            return False
+        return f"{year}-{month}-{day}" in normalized_disabled_dates
 
     def get_chat_summary(self, chat: Chat) -> Dict[str, Any]:
-        """
-        Returns a brief chat summary.
-
-        Args:
-            chat: Chat to analyze
-
-        Returns:
-            Dict[str, Any]: Summary with main metrics
-        """
         if not chat.messages:
             return {
                 "total_messages": 0,
@@ -377,6 +402,7 @@ class AnalysisService:
                 "service_messages": 0,
                 "unique_users": 0,
                 "date_range": None,
+                "most_active_user": None,
             }
 
         regular_messages = [msg for msg in chat.messages if isinstance(msg, Message)]
@@ -385,6 +411,7 @@ class AnalysisService:
         ]
 
         users = chat.get_users()
+        most_active_user = self._find_most_active_user(chat)
 
         try:
             start_date, end_date = chat.get_date_range()
@@ -402,18 +429,10 @@ class AnalysisService:
             "service_messages": len(service_messages),
             "unique_users": len(users),
             "date_range": date_range,
+            "most_active_user": most_active_user.name if most_active_user else None,
         }
 
     def calculate_user_activity(self, chat: Chat) -> Dict[str, Dict[str, Any]]:
-        """
-        Calculates user activity statistics.
-
-        Args:
-            chat: Chat to analyze
-
-        Returns:
-            Dict[str, Dict[str, Any]]: Statistics by users
-        """
         user_stats = {}
 
         for msg in chat.messages:
@@ -449,15 +468,6 @@ class AnalysisService:
         return user_stats
 
     def get_daily_activity(self, chat: Chat) -> Dict[str, int]:
-        """
-        Returns activity by day.
-
-        Args:
-            chat: Chat to analyze
-
-        Returns:
-            Dict[str, int]: Dictionary day -> number of messages
-        """
         daily_counts = defaultdict(int)
 
         for msg in chat.messages:
@@ -468,15 +478,6 @@ class AnalysisService:
         return dict(daily_counts)
 
     def get_hourly_activity(self, chat: Chat) -> Dict[int, int]:
-        """
-        Returns activity by hours of the day.
-
-        Args:
-            chat: Chat to analyze
-
-        Returns:
-            Dict[int, int]: Dictionary hour (0-23) -> number of messages
-        """
         hourly_counts = defaultdict(int)
 
         for msg in chat.messages:
@@ -485,236 +486,3 @@ class AnalysisService:
                 hourly_counts[hour] += 1
 
         return dict(hourly_counts)
-
-    def update_tree_values(self, tree_root: TreeNode, new_analysis_result: AnalysisResult) -> TreeNode:
-        """
-        Recursively updates the values of an existing TreeNode structure
-        based on a new date hierarchy, preserving ALL existing nodes.
-        """
-        new_hierarchy = new_analysis_result.date_hierarchy
-
-        def update_node_values(node: TreeNode):
-
-            if node.children:
-                new_node_total = 0
-                for child in node.children:
-                    new_node_total += update_node_values(child)
-                node.value = float(new_node_total)
-                return node.value
-
-            if node.date_level == "day" and node.parent and node.parent.parent:
-                year = node.parent.parent.name
-                month = node.parent.name
-                day = node.name
-
-                new_value = new_hierarchy.get(year, {}).get(month, {}).get(day, 0.0)
-                node.value = float(new_value)
-                return node.value
-
-            return float(node.value)
-
-        update_node_values(tree_root)
-
-        tree_root.value = float(new_analysis_result.total_count)
-
-        return tree_root
-
-    def recalculate_with_filters(
-        self,
-        chat: Chat,
-        config: Dict[str, Any],
-        tokenizer: Optional[Any],
-        disabled_dates: Set[Tuple[str, str, str]]
-    ) -> Tuple[AnalysisResult, TreeNode]:
-        """
-        Полный пересчёт с фильтрацией по датам.
-
-        Args:
-            chat: Chat для анализа
-            config: Конфигурация
-            tokenizer: Токенизатор (опционально)
-            disabled_dates: Отключённые даты (year, month, day)
-
-        Returns:
-            Tuple[AnalysisResult, TreeNode]: Результат анализа и построенное древо
-        """
-
-        try:
-
-            if tokenizer:
-                result = self.calculate_token_stats(chat, config, tokenizer, disabled_dates=set())
-            else:
-                result = self.calculate_character_stats(chat, config, disabled_dates=set())
-
-            tree = self.build_analysis_tree(result, config)
-
-            return result, tree
-
-        except Exception as e:
-            from src.resources.translations import tr
-            error_result = AnalysisResult(total_count=0, unit="chars", date_hierarchy={})
-            error_tree = TreeNode(tr("Error"), 0, node_id=TreeNodeIdentity.generate_root_id())
-            return error_result, error_tree
-
-    def _should_count_message(self, msg_dict: dict, prev_msg_dict: dict, context: ConversionContext, profile: str) -> bool:
-        """
-        Determines if a message should be counted based on optimization settings.
-        Uses the same logic as _should_print_header from message_formatter.py
-        """
-        from datetime import datetime
-
-        try:
-            current_dt = datetime.fromisoformat(msg_dict["date"])
-            prev_dt = datetime.fromisoformat(prev_msg_dict["date"])
-            if current_dt.date() != prev_dt.date():
-                return True
-        except (ValueError, KeyError):
-            return True
-
-        show_optimization = context.config.get("show_optimization", False)
-
-        if not show_optimization:
-            return True
-
-        current_author = context.get_author_name(msg_dict)
-        prev_author = context.get_author_name(prev_msg_dict)
-
-        if current_author != prev_author:
-            return True
-
-        show_service = context.config.get("show_service_notifications", True)
-        if show_service and prev_msg_dict.get("type") != "message":
-            return True
-
-        if show_optimization:
-            if profile == "channel":
-                streak_break_str = context.config.get("streak_break_time", "20:00")
-                break_seconds = self._parse_time_to_seconds(streak_break_str)
-
-                if break_seconds > 0:
-                    time_diff = (current_dt - prev_dt).total_seconds()
-                    if time_diff >= break_seconds:
-                        return True
-
-                if "reactions" in prev_msg_dict:
-                    return True
-                if "inline_bot_buttons" in prev_msg_dict or "reply_markup" in prev_msg_dict:
-                    return True
-                if msg_dict.get("reply_to_message_id") != prev_msg_dict.get("reply_to_message_id"):
-                    return True
-                if msg_dict.get("forwarded_from") != prev_msg_dict.get("forwarded_from"):
-                    return True
-
-                return False
-            else:
-                if "reactions" in prev_msg_dict:
-                    return True
-                return False
-
-        if profile != "channel":
-            return True
-
-        return True
-
-    def _count_message_chars_like_export(self, msg_dict: dict, prev_msg_dict: dict, context: ConversionContext, msg_idx: int) -> int:
-        """
-        Считает символы сообщения точно так же, как в экспорте.
-        Учитывает оптимизацию - если заголовок не печатается, то считаем только содержимое.
-        """
-        from src.core.conversion.message_formatter import _should_print_header, _format_header, _format_reply
-        from src.core.conversion.formatters.service_formatter import format_service_message
-        from src.core.conversion.utils import process_text_to_plain
-        from src.resources.translations import tr
-
-        print_header = _should_print_header(msg_dict, prev_msg_dict, context)
-
-        if msg_idx < 5:
-            pass
-
-        char_count = 0
-
-        if print_header:
-            if prev_msg_dict:
-                char_count += 1
-
-            header = _format_header(msg_dict, context)
-            char_count += len(header)
-
-            if msg_dict.get("via_bot_id"):
-                char_count += len(f"  ({tr('via bot')} {msg_dict['via_bot_id']})\n")
-
-            if msg_dict.get("forwarded_from") and not msg_dict.get("showForwardedAsOriginal"):
-                if context.config.get("profile", "group") != "posts":
-                    char_count += len(f"  [{tr('forwarded from')} {msg_dict['forwarded_from']}]\n")
-
-            reply = _format_reply(msg_dict, context)
-            char_count += len(reply)
-
-        if msg_dict.get("type") == "message":
-            content = process_text_to_plain(msg_dict.get("text", ""), context)
-            if content:
-                char_count += len(content)
-        else:
-
-            formatted_message = format_service_message(msg_dict, context)
-            if formatted_message:
-                char_count += len(formatted_message)
-
-        if not msg_dict.get("text") and not msg_dict.get("reactions"):
-            if print_header:
-                char_count += len(tr("[Mini-game]"))
-            else:
-                char_count += len(tr("[Empty message]"))
-
-        return char_count
-
-    def _convert_disabled_dates_to_nodes(self, disabled_dates: Set[Tuple[str, str, str]]) -> Set:
-        """Конвертирует disabled_dates в disabled_nodes для экспортёра."""
-        disabled_nodes = set()
-        for year, month, day in disabled_dates:
-
-            from src.core.analysis.tree_analyzer import TreeNode
-            from src.core.analysis.tree_identity import TreeNodeIdentity
-
-            node_id = TreeNodeIdentity.date_to_day_id(year, month, day)
-            node = TreeNode(f"{day}-{month}-{year}", 0, node_id=node_id)
-            disabled_nodes.add(node)
-
-        return disabled_nodes
-
-    def _parse_time_to_seconds(self, time_str: str) -> int:
-        """Parse time string like '20:00' to seconds."""
-        try:
-            parts = time_str.split(":")
-            if len(parts) == 2:
-                hours, minutes = map(int, parts)
-                return hours * 3600 + minutes * 60
-        except ValueError:
-            pass
-        return 0
-
-    def _message_to_dict(self, msg) -> dict:
-        """Конвертирует сообщение в dict для проверки оптимизации."""
-        if isinstance(msg, Message):
-            return {
-                "type": "message",
-                "date": msg.date.isoformat(),
-                "from_id": getattr(msg, 'from_id', None),
-                "text": msg.text,
-                "reply_to_message_id": getattr(msg, 'reply_to_message_id', None),
-                "forwarded_from": getattr(msg, 'forwarded_from', None),
-                "reactions": getattr(msg, 'reactions', None),
-                "inline_bot_buttons": getattr(msg, 'inline_bot_buttons', None),
-                "reply_markup": getattr(msg, 'reply_markup', None),
-            }
-        elif isinstance(msg, ServiceMessage):
-            return {
-                "type": "service",
-                "date": msg.date.isoformat(),
-                "action": getattr(msg, 'action', None),
-            }
-        else:
-            return {
-                "type": "unknown",
-                "date": msg.date.isoformat(),
-            }

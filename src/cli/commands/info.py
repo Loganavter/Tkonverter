@@ -1,8 +1,4 @@
-"""
-Info command for CLI.
 
-Shows information about chat export file without full conversion.
-"""
 
 import sys
 from typing import Any, Dict
@@ -10,28 +6,26 @@ from typing import Any, Dict
 from src.cli.output_formatter import OutputFormatter
 from src.core.application.chat_service import ChatService, ChatLoadError
 from src.core.application.statistics_service import StatisticsService
-from src.core.dependency_injection import setup_container
 
 class InfoCommand:
-    """Command to show information about chat export file."""
 
-    def __init__(self):
-        """Initialize info command."""
-        self.formatter = OutputFormatter()
-        self.container = setup_container()
-        self.chat_service = self.container.get(ChatService)
-        self.stats_service = self.container.get(StatisticsService)
+    def __init__(
+        self,
+        formatter: OutputFormatter | None = None,
+        chat_service: ChatService | None = None,
+        stats_service: StatisticsService | None = None,
+    ):
+        """Initialize info command with explicit dependencies."""
+        self.formatter = formatter or OutputFormatter()
+        if chat_service is None:
+            raise ValueError("InfoCommand requires chat_service dependency")
+        if stats_service is None:
+            raise ValueError("InfoCommand requires stats_service dependency")
+
+        self.chat_service = chat_service
+        self.stats_service = stats_service
 
     def execute(self, args) -> int:
-        """
-        Execute info command.
-
-        Args:
-            args: Parsed command line arguments
-
-        Returns:
-            int: Exit code (0 for success, 1 for error)
-        """
         try:
             input_file = args.input
 

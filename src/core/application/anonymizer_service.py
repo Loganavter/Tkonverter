@@ -1,323 +1,252 @@
+
+
+from __future__ import annotations
+
+import copy
 import re
-from typing import Dict, List, Optional
+import uuid
+from dataclasses import replace
+from typing import Any, Dict, Iterable, List
 from urllib.parse import urlparse
-from src.core.domain.anonymization import AnonymizationConfig, LinkFilterType, LinkMaskMode
-from src.resources.translations import tr
+
+from src.core.domain.models import Chat, Message, Reaction, ServiceMessage, User
+
+URL_PATTERN = re.compile(r"(https?://[^\s]+|www\.[^\s]+)")
+
 class AnonymizerService:
-    def __init__(self, config: AnonymizationConfig):
-        """
-        Инициализация сервиса анонимизации.
-        Для регистрации пользователей используйте register_user() перед обработкой.
-        """
-        self.config = config
 
-        self._id_to_index: Dict[str, int] = {}
+    def get_default_presets(self) -> List[Dict[str, Any]]:
+        return [
+            {
+                "id": "default",
+                "name": "Default",
+                "name_template": "User {index}",
+                "link_placeholder": "<link>",
+                "chat_name_placeholder": "Anonymized chat",
+            }
+        ]
 
-        self._norm_name_to_index: Dict[str, int] = {}
+    def create_preset(
+        self,
+        name: str,
+        name_template: str = "User {index}",
+        link_placeholder: str = "<link>",
+        chat_name_placeholder: str = "Anonymized chat",
+    ) -> Dict[str, Any]:
+        return {
+            "id": str(uuid.uuid4()),
+            "name": name.strip() or "Preset",
+            "name_template": name_template,
+            "link_placeholder": link_placeholder,
+            "chat_name_placeholder": chat_name_placeholder,
+        }
 
-        self._username_to_index: Dict[str, int] = {}
-        self._next_index = 1
+    def normalize_presets(self, presets: Iterable[Dict[str, Any]] | None) -> List[Dict[str, Any]]:
+        defaults = self.get_default_presets()
+        if not presets:
+            return defaults
 
-        self._url_to_index: Dict[str, int] = {}
-        self._next_url_index = 1
+        normalized: List[Dict[str, str]] = []
+        for preset in presets:
+            preset_id = str(preset.get("id", "")).strip() or str(uuid.uuid4())
+            normalized_preset: Dict[str, Any] = {
+                "id": preset_id,
+                "name": str(preset.get("name", "Preset")).strip() or "Preset",
+                "name_template": str(
+                    preset.get("name_template", "User {index}")
+                ).strip()
+                or "User {index}",
+                "link_placeholder": str(
+                    preset.get("link_placeholder", "<link>")
+                ).strip()
+                or "<link>",
+                "chat_name_placeholder": str(
+                    preset.get("chat_name_placeholder", "Anonymized chat")
+                ).strip()
+                or "Anonymized chat",
+            }
 
-        self._url_regex = re.compile(r'(https?://\S+|www\.\S+)')
+            if "hide_links" in preset:
+                normalized_preset["hide_links"] = bool(preset.get("hide_links"))
+            if "hide_names" in preset:
+                normalized_preset["hide_names"] = bool(preset.get("hide_names"))
+            if "name_mask_format" in preset:
+                normalized_preset["name_mask_format"] = (
+                    str(preset.get("name_mask_format", "")).strip() or "[ИМЯ {index}]"
+                )
+            if "link_mask_mode" in preset:
+                normalized_preset["link_mask_mode"] = (
+                    str(preset.get("link_mask_mode", "")).strip() or "simple"
+                )
+            if "link_mask_format" in preset:
+                normalized_preset["link_mask_format"] = (
+                    str(preset.get("link_mask_format", "")).strip() or "[ССЫЛКА {index}]"
+                )
+            if "custom_filters" in preset:
+                normalized_preset["custom_filters"] = list(preset.get("custom_filters") or [])
+            if "custom_names" in preset:
+                normalized_preset["custom_names"] = list(preset.get("custom_names") or [])
 
-        self._mention_pattern = re.compile(r'@([a-zA-Z0-9_]{5,32})')
+            normalized.append(normalized_preset)
+        return normalized or defaults
 
-        self._names_regex = None
+    def get_preset_by_id(
+        self, presets: Iterable[Dict[str, Any]] | None, preset_id: str | None
+    ) -> Dict[str, Any]:
+        if preset_id == "default":
+            return dict(self.get_default_presets()[0])
+        normalized = self.normalize_presets(presets)
+        if preset_id:
+            for preset in normalized:
+                if preset["id"] == preset_id:
+                    return preset
+        return normalized[0]
 
-        self._excluded_names = set()
-        if self.config.custom_names:
-            for item in self.config.custom_names:
-                val = item.get("value", "").strip()
-                if not val:
-                    continue
+    def anonymize_chat(self, chat: Chat, preset: Dict[str, Any]) -> Chat:
+        link_placeholder = str(preset.get("link_placeholder", "<link>"))
+        name_template = str(preset.get("name_template", "User {index}"))
+        chat_name_placeholder = str(
+            preset.get("chat_name_placeholder", "Anonymized chat")
+        )
 
-                norm_val = self._normalize_name(val)
+        name_map: Dict[str, str] = {}
 
-                if item.get("enabled", True):
+        def to_alias(original_name: str) -> str:
+            original_key = (original_name or "").strip()
+            if not original_key:
+                return "User"
+            if original_key not in name_map:
+                alias_index = len(name_map) + 1
+                name_map[original_key] = name_template.format(index=alias_index)
+            return name_map[original_key]
 
-                    if norm_val not in self._norm_name_to_index:
-                        self.register_user(name=val)
-                else:
-
-                    if norm_val:
-                        self._excluded_names.add(norm_val)
-
-    def _normalize_name(self, name: str) -> str:
-        """
-        Удаляет эмодзи, спецсимволы и приводит к нижнему регистру для сравнения.
-        Это поможет связать 'Глеб' и 'Глеб 🔥'.
-        """
-        if not name:
-            return ""
-
-        clean = re.sub(r'[^\w\s]', '', name).strip().lower()
-        return clean if clean else name.strip().lower()
-
-    def register_user(self, user_id: str = None, name: str = None):
-        """
-        Главный метод связывания. Вызывается при пред-сканировании.
-        Регистрирует пользователя и ищет юзернеймы внутри его имени
-        (например "Иван @ivan2000").
-        """
-        if not user_id and not name:
-            return
-
-        index = None
-        norm_name = self._normalize_name(name) if name else None
-
-        if user_id and user_id in self._id_to_index:
-            index = self._id_to_index[user_id]
-        elif norm_name and norm_name in self._norm_name_to_index:
-            index = self._norm_name_to_index[norm_name]
-
-        usernames_in_name = []
-        if name:
-            usernames_in_name = self._mention_pattern.findall(name)
-            for uname in usernames_in_name:
-                u_key = uname.lower()
-                if u_key in self._username_to_index:
-                    index = self._username_to_index[u_key]
-                    break
-
-        if index is None:
-            index = self._next_index
-            self._next_index += 1
-
-        if user_id:
-            self._id_to_index[user_id] = index
-        if norm_name:
-            self._norm_name_to_index[norm_name] = index
-        for uname in usernames_in_name:
-            self._username_to_index[uname.lower()] = index
-
-    def _rebuild_names_regex(self):
-        """Пересобирает regex для поиска имен в тексте после регистрации новых пользователей."""
-        if not self.config.hide_names:
-            return
-
-        all_name_parts = set()
-
-        for name in self._norm_name_to_index.keys():
-            parts = [p for p in re.split(r'\s+', name) if len(p) > 2]
-            for part in parts:
-                all_name_parts.add(re.escape(part))
-
-        if all_name_parts:
-            pattern_str = '|'.join(sorted(list(all_name_parts), key=len, reverse=True))
-            self._names_regex = re.compile(fr'\b({pattern_str})\b', re.IGNORECASE)
-        else:
-            self._names_regex = None
-
-    def process_text(self, text: str) -> str:
-        """Обрабатывает текст, применяя правила анонимизации."""
-        if not self.config.enabled:
-            return text
-
-        result = text
-        if self.config.hide_links:
-            result = self._anonymize_links(result)
-
-        if self.config.hide_names:
-            result = self._process_mentions(result)
-
-            if self._names_regex:
-
-                result = self._names_regex.sub(self._replace_name_match, result)
-
-        return result
-
-    def _replace_name_match(self, match) -> str:
-        """Callback для regex.sub."""
-        found_text = match.group(0)
-        norm_name = self._normalize_name(found_text)
-
-        if norm_name in self._excluded_names:
-            return found_text
-
-        idx = self._norm_name_to_index.get(norm_name)
-        if idx is None:
-            return self.config.name_mask_format.format(index="?")
-
-        return self.config.name_mask_format.format(index=idx)
-
-    def _process_mentions(self, text: str) -> str:
-        """Заменяет @username на [ИМЯ X]"""
-        def replace(match):
-            username = match.group(1)
-            key = username.lower()
-
-            if key in self._username_to_index:
-                idx = self._username_to_index[key]
+        anonymized_messages = []
+        for msg in chat.messages:
+            if isinstance(msg, Message):
+                anonymized_messages.append(
+                    self._anonymize_regular_message(msg, to_alias, link_placeholder)
+                )
+            elif isinstance(msg, ServiceMessage):
+                anonymized_messages.append(self._anonymize_service_message(msg, to_alias))
             else:
+                anonymized_messages.append(copy.deepcopy(msg))
 
-                idx = self._next_index
-                self._next_index += 1
-                self._username_to_index[key] = idx
+        return Chat(
+            name=chat_name_placeholder or chat.name,
+            type=chat.type,
+            messages=anonymized_messages,
+        )
 
-            return self.config.name_mask_format.format(index=idx)
+    def anonymize_text(self, text: str, link_placeholder: str = "<link>") -> str:
+        return URL_PATTERN.sub(link_placeholder, text or "")
 
-        return self._mention_pattern.sub(replace, text)
-
-    def get_anonymized_name(self, user_id: str, original_name: str) -> str:
-        """Для сообщений с ID."""
-        if not self.config.enabled or not self.config.hide_names:
-            return original_name
-
-        norm_name = self._normalize_name(original_name)
-        if norm_name in self._excluded_names:
-            return original_name
-
-        if user_id in self._id_to_index:
-            idx = self._id_to_index[user_id]
-        else:
-            if norm_name in self._norm_name_to_index:
-                idx = self._norm_name_to_index[norm_name]
-            else:
-                self.register_user(user_id, original_name)
-                idx = self._id_to_index.get(user_id, self._next_index - 1)
-        return self.config.name_mask_format.format(index=idx)
-
-    def anonymize_string_name(self, name: str) -> str:
-        """Для строк без ID (truncate_name)."""
-        if not self.config.enabled or not self.config.hide_names or not name:
-            return name
-
-        norm_name = self._normalize_name(name)
-
-        if norm_name in self._excluded_names:
-            return name
-
-        if norm_name in self._norm_name_to_index:
-            idx = self._norm_name_to_index[norm_name]
-            return self.config.name_mask_format.format(index=idx)
-
-        return name
-
-    def _should_hide_link(self, url: str) -> bool:
-        """Проверяет, нужно ли скрывать ссылку по фильтрам."""
-        filters = self.config.custom_filters + \
-                  (self.config.active_preset.filters if self.config.active_preset else [])
-        if not filters:
-            return True
-
-        for f in filters:
-            if not f.enabled:
-                continue
-
-            if f.type == LinkFilterType.ALL:
-                return True
-            elif f.type == LinkFilterType.DOMAIN:
-                if f.value.lower() in url.lower():
-                    return True
-            elif f.type == LinkFilterType.REGEX:
-                try:
-                    if re.search(f.value, url):
-                        return True
-                except re.error:
-                    pass
-        return False
-
-    def _anonymize_links(self, text: str) -> str:
-        """Заменяет ссылки согласно активным фильтрам и режиму маскировки."""
-
-        def replace_match(match):
-            url = match.group(0)
-
-            should_hide = self._should_hide_link(url)
-            if not should_hide:
-                return url
-
-            mode = self.config.link_mask_mode
-
-            if mode == LinkMaskMode.SIMPLE:
-                return tr("[ССЫЛКА СКРЫТА]")
-
-            elif mode == LinkMaskMode.DOMAIN_ONLY:
-                try:
-                    parsed = urlparse(url if "://" in url else "http://" + url)
-                    domain = parsed.netloc.replace("www.", "")
-                    return f"{domain}/[...]"
-                except:
-                    return "[URL/[...]]"
-
-            elif mode == LinkMaskMode.INDEXED:
-                if url not in self._url_to_index:
-                    self._url_to_index[url] = self._next_url_index
-                    self._next_url_index += 1
-                return self.config.link_mask_format.format(index=self._url_to_index[url])
-
-            elif mode == LinkMaskMode.CUSTOM:
-
-                if "{index}" in self.config.link_mask_format:
-                    if url not in self._url_to_index:
-                        self._url_to_index[url] = self._next_url_index
-                        self._next_url_index += 1
-                    return self.config.link_mask_format.format(index=self._url_to_index[url])
-                return self.config.link_mask_format
-
-            return tr("[ССЫЛКА СКРЫТА]")
-
-        return self._url_regex.sub(replace_match, text)
-
-    def extract_unique_domains(self, chat) -> List[str]:
-        """Сканирует чат и возвращает список уникальных доменов из ссылок."""
-        if not chat or not chat.messages:
+    def extract_unique_domains(self, chat: Chat) -> List[str]:
+        if not chat or not getattr(chat, "messages", None):
             return []
 
-        domains = set()
-
-        regex = self._url_regex
-
+        seen: set[str] = set()
+        domains: List[str] = []
         for msg in chat.messages:
-            text_sources = []
+            for domain in self._extract_domains_from_text_data(getattr(msg, "text", None)):
+                if domain and domain not in seen:
+                    seen.add(domain)
+                    domains.append(domain)
+        return domains
 
-            if hasattr(msg, 'text'):
-                if isinstance(msg.text, str):
-                    text_sources.append(msg.text)
-                elif isinstance(msg.text, list):
-                    for item in msg.text:
-                        if isinstance(item, str):
-                            text_sources.append(item)
-                        elif isinstance(item, dict):
-                            text_sources.append(item.get("text", ""))
+    def _anonymize_regular_message(
+        self,
+        message: Message,
+        alias_factory,
+        link_placeholder: str,
+    ) -> Message:
+        anonymized_author = replace(message.author, name=alias_factory(message.author.name))
 
-                            if item.get("type") == "text_link" and "href" in item:
-                                text_sources.append(item["href"])
+        anonymized_reactions: List[Reaction] = []
+        for reaction in message.reactions:
+            anonymized_authors = [
+                replace(author, name=alias_factory(author.name)) for author in reaction.authors
+            ]
+            anonymized_reactions.append(replace(reaction, authors=anonymized_authors))
 
-            full_text_to_scan = " ".join(text_sources)
+        anonymized_forwarded_from = (
+            alias_factory(message.forwarded_from) if message.forwarded_from else None
+        )
 
-            if not full_text_to_scan:
+        anonymized_text = self._anonymize_text_data(message.text, link_placeholder)
+
+        return replace(
+            message,
+            author=anonymized_author,
+            reactions=anonymized_reactions,
+            forwarded_from=anonymized_forwarded_from,
+            text=anonymized_text,
+        )
+
+    def _anonymize_service_message(self, message: ServiceMessage, alias_factory) -> ServiceMessage:
+        anonymized_actor = alias_factory(message.actor) if message.actor else None
+        anonymized_members = [alias_factory(member) for member in message.members]
+        return replace(message, actor=anonymized_actor, members=anonymized_members)
+
+    def _anonymize_text_data(self, text_data: Any, link_placeholder: str) -> Any:
+        if isinstance(text_data, str):
+            return self.anonymize_text(text_data, link_placeholder)
+
+        if not isinstance(text_data, list):
+            return text_data
+
+        sanitized: List[Any] = []
+        for item in text_data:
+            if isinstance(item, str):
+                sanitized.append(self.anonymize_text(item, link_placeholder))
                 continue
 
-            found_urls = regex.findall(full_text_to_scan)
-            for url in found_urls:
+            if isinstance(item, dict):
+                item_copy = dict(item)
+                item_type = item_copy.get("type")
+                text_value = item_copy.get("text")
+                if isinstance(text_value, str):
+                    item_copy["text"] = self.anonymize_text(text_value, link_placeholder)
+                if item_type == "text_link":
+                    item_copy["href"] = link_placeholder
+                sanitized.append(item_copy)
+                continue
 
-                if not url.startswith(('http://', 'https://')):
-                    url = 'http://' + url
+            sanitized.append(item)
 
-                try:
-                    parsed = urlparse(url)
-                    domain = parsed.netloc
+        return sanitized
 
-                    if domain.startswith("www."):
-                        domain = domain[4:]
+    def _extract_domains_from_text_data(self, text_data: Any) -> List[str]:
+        if isinstance(text_data, str):
+            return self._extract_domains_from_text(text_data)
 
-                    if domain:
-                        domains.add(domain)
-                except Exception:
-                    continue
+        if not isinstance(text_data, list):
+            return []
 
-        return sorted(list(domains))
+        domains: List[str] = []
+        for item in text_data:
+            if isinstance(item, str):
+                domains.extend(self._extract_domains_from_text(item))
+                continue
+            if isinstance(item, dict):
+                text_value = item.get("text")
+                if isinstance(text_value, str):
+                    domains.extend(self._extract_domains_from_text(text_value))
+                href_value = item.get("href")
+                if isinstance(href_value, str):
+                    domains.extend(self._extract_domains_from_text(href_value))
+        return domains
 
-    def reset(self):
-        """Сбрасывает состояние сервиса (например, карту пользователей)."""
-        self._id_to_index.clear()
-        self._norm_name_to_index.clear()
-        self._username_to_index.clear()
-        self._next_index = 1
-        self._url_to_index.clear()
-        self._next_url_index = 1
-        self._names_regex = None
+    def _extract_domains_from_text(self, text: str) -> List[str]:
+        if not text:
+            return []
+
+        domains: List[str] = []
+        for raw_url in URL_PATTERN.findall(text):
+            candidate_url = raw_url if raw_url.startswith(("http://", "https://")) else f"http://{raw_url}"
+            parsed = urlparse(candidate_url)
+            host = (parsed.netloc or "").strip().lower()
+            if host.startswith("www."):
+                host = host[4:]
+            if host:
+                domains.append(host)
+        return domains

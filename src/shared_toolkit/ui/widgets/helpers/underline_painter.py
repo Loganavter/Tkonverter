@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from PyQt6.QtCore import QRectF, QPointF, Qt
 from PyQt6.QtGui import QPen, QColor
 from PyQt6.QtWidgets import QLineEdit
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 from typing import Optional, List, Union
 
 @dataclass

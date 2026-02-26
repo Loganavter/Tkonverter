@@ -62,6 +62,7 @@ While its primary goal is LLM pre-processing, it is a versatile tool that may be
 - **Context Saving Tools**: Reduce token count with options to automatically shorten replied-to message snippets and truncate long usernames.
 - **Rich Context Options**: Choose to include detailed information like reactions, poll results, links, and full Markdown formatting for the highest quality input.
 - **Fine-Grained Control**: Toggle the visibility of timestamps, service messages, and technical information.
+- **Anonymization Module**: Before sharing chats with an LLM or third party, anonymize names and links. Replace display names with masks (e.g. `[ИМЯ 1]` or `User 1`), hide or mask URLs (simple placeholder, domain-only, or indexed), use presets and custom domain/regex filters. Configurable via the GUI or JSON config for CLI.
 
 ### 📊 Analytics for LLM Pre-processing
 - **Token & Character Counting**: Calculate the exact token count (using Hugging Face tokenizers) or character count to understand how formatting choices impact the final data size.
@@ -85,14 +86,14 @@ While its primary goal is LLM pre-processing, it is a versatile tool that may be
 Currently, the primary installation method is by running from the source code.
 
 ### 🐍 From Source (Linux/macOS)
-The `launcher.sh` script will automatically create a virtual environment and install all dependencies.
+The `launcher.sh` script will automatically create a virtual environment and install dependencies from `requirements-gui.txt`.
 ```bash
 git clone https://github.com/Loganavter/Tkonverter.git
 cd Tkonverter
 chmod +x launcher.sh
 ./launcher.sh run
 ```
-Use `./launcher.sh --help` for a full list of commands (including `recreate`, `delete`, `profile`).
+Use `./launcher.sh --help` for a full list of commands (including `recreate`, `delete`, `profile`). Dependencies: `requirements-gui.txt` for GUI (and CLI from repo); `requirements-cli.txt` for CLI-only (e.g. server, no PyQt). See [docs/INSTALL.md](docs/INSTALL.md).
 
 ### 🪟 Windows, 🐧 Linux, 🍏 macOS
 Installers and distribution packages are planned for the future. Contributions are welcome!
@@ -105,8 +106,9 @@ Installers and distribution packages are planned for the future. Contributions a
 1.  **Launch** the application: `./launcher.sh run`.
 2.  **Drag and drop** your `result.json` file (from a Telegram export) into the application window.
 3.  **Configure** the formatting options on the left panel.
-4.  **(Optional)** Click **"Recalculate"** to analyze tokens and open the chart for visualization.
-5.  **Click** **"Save to file..."** to export the result as a `.txt` file.
+4.  **(Optional)** Open **Anonymization** to hide or mask names and links before export.
+5.  **(Optional)** Click **"Recalculate"** to analyze tokens and open the chart for visualization.
+6.  **Click** **"Save to file..."** to export the result as a `.txt` file.
 
 ### Command Line Interface (CLI)
 ```bash

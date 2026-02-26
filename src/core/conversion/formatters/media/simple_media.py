@@ -128,6 +128,9 @@ def format_location(location_info: dict, context: ConversionContext) -> str:
     if not context.config.get("show_tech_info", True):
         return f"{tr('[Geoposition]')}"
 
+    if lat is None or lon is None:
+        return f"{tr('[Geoposition]')}"
+
     return f"{tr('[Geoposition: {lat:.6f}, {lon:.6f}]').format(lat=lat, lon=lon)}"
 
 def format_place(msg: dict, context: ConversionContext) -> str:

@@ -2,8 +2,8 @@ from PyQt6.QtCore import Qt, QPoint, QRect
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtGui import QGuiApplication
 
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from shared_toolkit.ui.managers.flyout_manager import FlyoutManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.flyout_manager import FlyoutManager
 
 class BaseFlyout(QWidget):
     def __init__(self, parent=None):
@@ -31,17 +31,7 @@ class BaseFlyout(QWidget):
         self.flyout_manager.register_flyout(self)
 
     def _apply_base_style(self):
-
-        bg = self.theme_manager.get_color("flyout.background").name()
-        border = self.theme_manager.get_color("flyout.border").name()
-
-        self.container.setStyleSheet(f"""
-            QWidget#FlyoutContainer {{
-                background-color: {bg};
-                border: 1px solid {border};
-                border-radius: 8px;
-            }}
-        """)
+        pass
 
     def add_widget(self, widget):
         self.content_layout.addWidget(widget)

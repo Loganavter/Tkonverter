@@ -4,13 +4,11 @@ from src.core.conversion.main_converter import generate_plain_text
 from src.resources.translations import tr
 
 class PreviewService:
-    """Service for generating preview data and HTML."""
 
     def __init__(self):
         pass
 
     def generate_preview_data(self, config: dict) -> dict:
-        """Generates hardcoded preview data based on configuration."""
         profile = config.get("profile", "group")
 
         my_name = config.get("my_name", tr("Me"))
@@ -232,7 +230,6 @@ class PreviewService:
         return preview_data
 
     def generate_preview_text(self, config: dict) -> tuple[str, str]:
-        """Generates preview text and title based on configuration."""
         try:
             preview_data = self.generate_preview_data(config)
             raw_text = generate_plain_text(preview_data, config, html_mode=True)
@@ -259,10 +256,6 @@ class PreviewService:
             return error_message, "Preview Error"
 
     def get_longest_preview_html(self, config: dict) -> str:
-        """
-        Generates HTML for the longest static example ('posts').
-        Used to calculate window height initially.
-        """
         try:
             config_copy = config.copy()
             config_copy["profile"] = "posts"

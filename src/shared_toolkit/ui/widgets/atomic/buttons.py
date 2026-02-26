@@ -22,9 +22,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ...managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
 from src.ui.icon_manager import AppIcon, get_app_icon
-from .tool_button import ToolButton
+from src.shared_toolkit.ui.widgets.atomic.tool_button import ToolButton
 
 class ButtonType(Enum):
     DEFAULT = 0

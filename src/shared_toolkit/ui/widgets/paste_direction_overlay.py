@@ -4,7 +4,7 @@ from PyQt6.QtCore import QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QWidget
 
-from resources.translations import tr
+from src.resources.translations import tr
 
 class PasteDirectionOverlay(QWidget):
 

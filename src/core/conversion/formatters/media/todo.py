@@ -3,7 +3,6 @@ from src.core.conversion.utils import process_text_to_plain
 from src.resources.translations import tr
 
 def format_todo_list(todo_data: dict, context: ConversionContext) -> str:
-    """Formats a to-do list."""
     lines = [f"**{tr('To-Do List')}**"]
 
     title = process_text_to_plain(todo_data.get('title', ''), context)

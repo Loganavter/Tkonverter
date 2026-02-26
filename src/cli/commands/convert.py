@@ -1,40 +1,35 @@
-"""
-Convert command for CLI.
 
-Converts Telegram chat export to text format.
-"""
 
 import os
 import sys
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Set
 
 from src.cli.output_formatter import OutputFormatter
 from src.cli.config_loader import ConfigLoader
 from src.core.application.chat_service import ChatService, ChatLoadError
 from src.core.application.conversion_service import ConversionService
-from src.core.dependency_injection import setup_container
 
 class ConvertCommand:
-    """Command to convert chat export to text format."""
 
-    def __init__(self):
-        """Initialize convert command."""
-        self.formatter = OutputFormatter()
-        self.config_loader = ConfigLoader()
-        self.container = setup_container()
-        self.chat_service = self.container.get(ChatService)
-        self.conversion_service = self.container.get(ConversionService)
+    def __init__(
+        self,
+        formatter: OutputFormatter | None = None,
+        config_loader: ConfigLoader | None = None,
+        chat_service: ChatService | None = None,
+        conversion_service: ConversionService | None = None,
+    ):
+        """Initialize convert command with explicit dependencies."""
+        self.formatter = formatter or OutputFormatter()
+        self.config_loader = config_loader or ConfigLoader()
+        if chat_service is None:
+            raise ValueError("ConvertCommand requires chat_service dependency")
+        if conversion_service is None:
+            raise ValueError("ConvertCommand requires conversion_service dependency")
+
+        self.chat_service = chat_service
+        self.conversion_service = conversion_service
 
     def execute(self, args) -> int:
-        """
-        Execute convert command.
-
-        Args:
-            args: Parsed command line arguments
-
-        Returns:
-            int: Exit code (0 for success, 1 for error)
-        """
         try:
             input_file = args.input
             output_file = args.output
@@ -107,15 +102,6 @@ class ConvertCommand:
             return 1
 
     def _load_configuration(self, args) -> Dict[str, Any]:
-        """
-        Load and merge configuration from file and CLI arguments.
-
-        Args:
-            args: Parsed command line arguments
-
-        Returns:
-            Dict[str, Any]: Final configuration
-        """
 
         args_dict = vars(args)
 
@@ -136,16 +122,6 @@ class ConvertCommand:
             raise
 
     def _prepare_date_filtering(self, args, chat) -> Optional[Set]:
-        """
-        Prepare date filtering based on CLI arguments.
-
-        Args:
-            args: Parsed command line arguments
-            chat: Chat object
-
-        Returns:
-            Optional[Set]: Set of disabled TreeNode objects or None
-        """
         disabled_dates = set()
 
         from_date = getattr(args, 'from_date', None)

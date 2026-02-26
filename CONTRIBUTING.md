@@ -41,6 +41,7 @@ Tip: Prefer updating the in-app Help when you add features; the README links to 
 - src/ui: Qt UI, dialogs, main window, widgets, managers
 - src/resources: application assets (icons, styles, fonts) and user Help in multiple languages
 - src/shared_toolkit: shared library reused across projects (widgets, managers, utils, fonts)
+- build: packaging templates (Flatpak-template, Windows-template; AUR planned)
 - launcher.sh: CLI helper to manage venv and run tasks
 
 Useful entry points:
@@ -107,23 +108,44 @@ If you prefer manual venv management:
 python -m venv venv
 source venv/bin/activate        # Linux/macOS
 # .\venv\Scripts\activate      # Windows PowerShell
-pip install -r requirements.txt
+pip install -r requirements-gui.txt
 python -m src
 ```
+(For CLI-only, use `requirements-cli.txt` and run `python -m src.cli`.)
 
 ## Building packages
 
-### Future packaging plans
+All packaging templates live under **build/** (same layout as Improve-ImgSLI):
 
-Currently, Tkonverter is distributed primarily through source code installation via the launcher script. This is due to the complexity of managing AI dependencies (Hugging Face models) and the need for dynamic model downloads.
+- **build/launcher.sh** — launcher for system-wide install (PYTHONPATH, `python3 -m src`); set `TKONVERTER_LIB` if app is not in `/usr/lib/tkonverter`
+- **build/Flatpak-template/** — Flatpak manifest, **tkonverter-launcher.sh** (installed as `/app/bin/Tkonverter`)
+- **build/Windows-template/** — PyInstaller spec and Inno Setup script
+- **build/AUR-template/** — **launcher.sh**, **tkonverter.desktop** (for future AUR package)
 
-Future packaging options being considered:
-- **Windows**: PyInstaller + Inno Setup installer
-- **Linux (AUR)**: Arch Linux package for AUR
-- **Linux (Flatpak)**: Flathub package
-- **macOS**: Native macOS application bundle
+### Flatpak (Linux)
 
-Contributions for packaging solutions are welcome! The main challenge is handling the dynamic installation of AI models and dependencies.
+From the repository root:
+
+```bash
+flatpak-builder build build/Flatpak-template/org.loganavter.Tkonverter.yaml
+flatpak-builder --user --install --force-clean build build/Flatpak-template/org.loganavter.Tkonverter.yaml
+```
+
+Run with `flatpak run org.loganavter.Tkonverter`. The tokenizer is not in the image; users install it from the app (AI Component Management → Install/Update transformers library), then restart.
+
+### Windows (PyInstaller + Inno Setup)
+
+1. Install dependencies: `pip install -r requirements-gui.txt pyinstaller`
+2. Build the executable from repo root: `pyinstaller build/Windows-template/Tkonverter.spec`  
+   Creates `dist/Tkonverter.exe` (one-file). Transformers are not bundled; the user can install them from the app after installation.
+3. Installer: Install [Inno Setup](https://jrsoftware.org/isinfo.php), open `build/Windows-template/inno_setup.iss`, press F9. Output: `build/Windows-template/Output/`.
+
+### Other packaging
+
+- **Linux (AUR)**: build/AUR-template (planned)
+- **macOS**: Native application bundle (planned)
+
+Contributions for packaging solutions are welcome.
 
 ## Documentation and translations
 

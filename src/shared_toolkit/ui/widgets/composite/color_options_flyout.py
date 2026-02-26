@@ -2,14 +2,14 @@ from PyQt6.QtCore import pyqtSignal, QEvent, Qt, QSize, QTimer
 from PyQt6.QtWidgets import QHBoxLayout, QWidget
 from PyQt6.QtGui import QColor
 
-from ..atomic./simple_icon_button import SimpleIconButton
-from ./base_flyout import BaseFlyout
+from src.shared_toolkit.ui.widgets.atomic.simple_icon_button import SimpleIconButton
+from src.shared_toolkit.ui.widgets.composite.base_flyout import BaseFlyout
 try:
-    from ...icon_manager import AppIcon, get_app_icon
+    from src.shared_toolkit.ui.icon_manager import AppIcon, get_app_icon
 except ImportError:
     AppIcon = None
     get_app_icon = None
-from resources.translations import tr
+from src.resources.translations import tr
 
 class ColorOptionsFlyout(BaseFlyout):
     colorOptionClicked = pyqtSignal(str)
@@ -37,7 +37,7 @@ class ColorOptionsFlyout(BaseFlyout):
         self.btn_disabled.setFixedSize(28, 28)
         self.btn_disabled.setIconSize(QSize(18, 18))
         self.btn_disabled.setEnabled(False)
-        self.btn_disabled.setStyleSheet("opacity: 0.4;")
+        self.btn_disabled.setProperty("opacity", "0.4")
         self.btn_disabled.setToolTip(tr("magnifier.change_magnifier_colors", self.current_language))
         self.h_layout.addWidget(self.btn_disabled)
 

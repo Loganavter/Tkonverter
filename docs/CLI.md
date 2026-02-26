@@ -8,15 +8,27 @@ Tkonverter CLI provides full feature parity with the GUI application through a c
 
 ## Installation
 
-The CLI uses the same virtual environment as the GUI application. No additional installation is required.
+**From repository (GUI + CLI):** The CLI can use the same virtual environment as the GUI. No additional installation is required.
 
 ```bash
-# Make sure the main application is set up first
+# Set up environment (installs from requirements-gui.txt)
 ./launcher.sh install
 
-# Then use the CLI
+# Use the CLI
 ./tkonverter-cli.sh --help
 ```
+
+**CLI-only (no PyQt, e.g. server or headless):** Use the lighter dependency set:
+
+```bash
+python -m venv venv
+source venv/bin/activate   # Linux/macOS; on Windows: .\venv\Scripts\activate
+pip install -r requirements-cli.txt
+python -m src.cli --help
+```
+
+- `requirements-gui.txt` — GUI and CLI (PyQt6, numpy, Pillow, markdown).
+- `requirements-cli.txt` — CLI only (no PyQt6).
 
 ## Commands
 
@@ -54,6 +66,10 @@ Converts Telegram chat export to readable text format.
 - `--my-name`: Your name in personal chats
 - `--partner-name`: Partner name in personal chats
 - `--streak-break-time`: Streak break time in HH:MM format
+
+**Date filtering:** `--from-date`, `--to-date` (YYYY-MM-DD), `--exclude-dates` (space-separated dates) — exclude messages outside the range or on the given dates from the converted output.
+
+**Anonymization** is configured via the JSON config file (no dedicated CLI flags). See [Configuration Files](#configuration-files) for the `anonymization` object.
 
 ### `analyze` - Analyze Chat Statistics
 
@@ -104,7 +120,7 @@ Shows information about chat export file without full conversion.
 
 ## Configuration Files
 
-CLI supports JSON configuration files for complex setups:
+CLI supports JSON configuration files for complex setups. These are separate from the **persistent config** stored by the GUI in `~/.config/Tkonverter/` (main settings in `Tkonverter.conf`, anonymization presets in `anonymizer_presets/`, per-chat data in `chat_memory/`). See [INSTALL.md — Configuration and data in ~/.config](INSTALL.md#configuration-and-data-in-config) for details.
 
 ```json
 {
@@ -119,9 +135,21 @@ CLI supports JSON configuration files for complex setups:
   "show_markdown": true,
   "show_links": true,
   "show_tech_info": true,
-  "show_service_notifications": true
+  "show_service_notifications": true,
+  "anonymization": {
+    "enabled": true,
+    "hide_links": true,
+    "hide_names": true,
+    "name_mask_format": "[ИМЯ {index}]",
+    "link_mask_mode": "simple",
+    "link_mask_format": "[ССЫЛКА {index}]",
+    "custom_names": [],
+    "custom_filters": []
+  }
 }
 ```
+
+**Anonymization** (optional): when `anonymization.enabled` is `true`, display names are replaced by `name_mask_format` (use `{index}` for a numeric id), and links are hidden or replaced according to `link_mask_mode`: `"simple"` (single placeholder), `"domain"` (domain-only), `"indexed"` (numbered placeholders), or `"custom"` (use `link_mask_format` with `{index}`). Set `hide_links` / `hide_names` to control replacement. `custom_names` and `custom_filters` are lists of rules (e.g. domain or regex filters) for fine-grained control; see the GUI help for structure.
 
 Configuration files can be combined with CLI arguments. CLI arguments take precedence over configuration file settings.
 
@@ -233,3 +261,5 @@ The CLI is optimized for performance:
 ./tkonverter-cli.sh analyze --help
 ./tkonverter-cli.sh info --help
 ```
+
+**Help language (en/ru):** CLI help text is shown in English or Russian. Language is chosen by environment: `TKONVERTER_CLI_LANG` (e.g. `en` or `ru`), or else `LANG` / `LC_ALL` / `LANGUAGE` (e.g. `ru_RU.UTF-8` → Russian). Example: `TKONVERTER_CLI_LANG=ru ./tkonverter-cli.sh --help`.

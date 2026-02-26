@@ -23,17 +23,36 @@ logging.getLogger('markdown.extensions.nl2br').setLevel(logging.WARNING)
 
 from markdown import markdown
 
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from shared_toolkit.ui.widgets.atomic.minimalist_scrollbar import (
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.minimalist_scrollbar import (
     MinimalistScrollBar,
 )
-from shared_toolkit.utils.paths import resource_path
+from src.shared_toolkit.utils.paths import resource_path
 try:
-    from resources.translations import tr
+    from src.resources.translations import tr
 except ImportError:
 
-    def tr(key, language=None):
+    def tr(key, language=None, *args, **kwargs):
         return key
+
+_SECTION_TITLE_FALLBACKS = {
+    "en": {
+        "introduction": "Introduction",
+        "files": "File Management",
+        "conversion": "Conversion Options",
+        "analysis": "Analysis Tools",
+        "ai": "AI Features",
+        "export": "Exporting",
+    },
+    "ru": {
+        "introduction": "Введение",
+        "files": "Управление файлами",
+        "conversion": "Настройки конвертации",
+        "analysis": "Инструменты анализа",
+        "ai": "Функции ИИ",
+        "export": "Экспорт",
+    },
+}
 
 class CurrentPageStackedWidget(QStackedWidget):
 
@@ -162,6 +181,14 @@ class HelpDialog(QDialog):
             title = tr(title_key, language=self.current_language)
         except Exception:
             title = title_key
+
+        if title == title_key and section_id:
+            lang = (self.current_language or "en").strip().split("_")[0].lower()
+            if lang == "pt":
+                lang = "pt_BR"
+            fallbacks = _SECTION_TITLE_FALLBACKS.get(lang) or _SECTION_TITLE_FALLBACKS.get("en")
+            if fallbacks and section_id in fallbacks:
+                title = fallbacks[section_id]
 
         nav_item = QListWidgetItem(title, self.nav_widget)
         nav_item.setSizeHint(QSize(200, 35))

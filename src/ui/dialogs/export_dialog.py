@@ -16,9 +16,9 @@ from PyQt6.QtWidgets import (
 from src.resources.translations import tr
 from src.ui.dialogs.dialog_builder import auto_size_dialog, setup_dialog_scaffold, setup_dialog_icon
 from src.ui.icon_manager import AppIcon, get_app_icon
-from shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
-from shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
-from shared_toolkit.utils.paths import resource_path
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.ui.widgets.atomic.custom_line_edit import CustomLineEdit
+from src.shared_toolkit.utils.paths import resource_path
 
 class ExportDialog(QDialog):
 
@@ -39,7 +39,7 @@ class ExportDialog(QDialog):
         self._is_updating_name = False
 
         setup_dialog_icon(self)
-        self.setWindowTitle(tr("Export Chat"))
+        self.setWindowTitle(tr("dialog.export.title"))
 
         self.setWindowFlags(
             Qt.WindowType.Window
@@ -53,10 +53,12 @@ class ExportDialog(QDialog):
         main_layout.setSpacing(15)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
-        dir_label = QLabel(tr("Folder to save:"))
+        dir_label = QLabel(tr("export.folder_to_save"))
         dir_label.setObjectName("dir_label")
         self.edit_dir = CustomLineEdit()
-        self.btn_browse_dir = CustomButton(get_app_icon(AppIcon.FOLDER_OPEN), tr("Browse..."))
+        self.btn_browse_dir = CustomButton(
+            get_app_icon(AppIcon.FOLDER_OPEN), tr("common.browse")
+        )
         self.btn_browse_dir.clicked.connect(self._choose_directory)
 
         dir_row = QHBoxLayout()
@@ -65,15 +67,15 @@ class ExportDialog(QDialog):
 
         fav_row = QHBoxLayout()
         fav_row.setContentsMargins(0, 0, 0, 0)
-        self.checkbox_use_default_dir = QCheckBox(tr("Use as default folder"))
+        self.checkbox_use_default_dir = QCheckBox(tr("export.use_default_folder"))
 
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
         button_layout.setContentsMargins(0, 0, 0, 0)
         button_layout.setSpacing(8)
 
-        self.btn_set_favorite = CustomButton(None, tr("To Favorites"))
-        self.btn_use_favorite = CustomButton(None, tr("From Favorites"))
+        self.btn_set_favorite = CustomButton(None, tr("export.to_favorites"))
+        self.btn_use_favorite = CustomButton(None, tr("export.from_favorites"))
         self.btn_set_favorite.clicked.connect(self._set_favorite_from_current)
         self.btn_use_favorite.clicked.connect(self._use_favorite_dir)
 
@@ -83,7 +85,7 @@ class ExportDialog(QDialog):
         fav_row.addWidget(self.checkbox_use_default_dir, stretch=2)
         fav_row.addWidget(button_container, stretch=0)
 
-        name_label = QLabel(tr("File name (without extension):"))
+        name_label = QLabel(tr("export.filename_without_ext"))
         name_label.setObjectName("name_label")
         self.edit_name = CustomLineEdit()
 
@@ -94,7 +96,7 @@ class ExportDialog(QDialog):
         main_layout.addWidget(name_label)
         main_layout.addWidget(self.edit_name)
 
-        setup_dialog_scaffold(self, main_layout, ok_text=tr("Save"))
+        setup_dialog_scaffold(self, main_layout, ok_text=tr("common.save"))
 
         auto_size_dialog(self, min_width=450, min_height=200)
 
@@ -110,18 +112,12 @@ class ExportDialog(QDialog):
         self._update_final_filename_preview()
 
     def _populate_from_state(self):
-
-        use_default = self.settings_manager.settings.value(
-            "export_use_default_dir", True, type=bool
-        )
+        export_settings = self.settings_manager.load_export_settings()
+        use_default = bool(export_settings.get("use_default_dir", True))
 
         self.checkbox_use_default_dir.setChecked(use_default)
 
-        out_dir = (
-            self.settings_manager.settings.value("export_default_dir", "", type=str)
-            if use_default
-            else ""
-        )
+        out_dir = export_settings.get("default_dir", "") if use_default else ""
 
         if not out_dir or not os.path.isdir(out_dir):
             out_dir = self._get_os_default_downloads()
@@ -159,7 +155,9 @@ class ExportDialog(QDialog):
     def _choose_directory(self):
         start_dir = self.edit_dir.text() or self._get_os_default_downloads()
 
-        chosen = QFileDialog.getExistingDirectory(self, tr("Choose folder"), start_dir)
+        chosen = QFileDialog.getExistingDirectory(
+            self, tr("export.choose_folder"), start_dir
+        )
 
         if chosen:
             self.edit_dir.setText(chosen)
@@ -169,10 +167,10 @@ class ExportDialog(QDialog):
     def _set_favorite_from_current(self):
         path = self.edit_dir.text().strip()
         if path:
-            self.settings_manager.settings.setValue("export_favorite_dir", path)
+            self.settings_manager.save_export_favorite_dir(path)
 
     def _use_favorite_dir(self):
-        path = self.settings_manager.settings.value("export_favorite_dir", "", type=str)
+        path = self.settings_manager.load_export_favorite_dir()
 
         if path:
             self.edit_dir.setText(path)
@@ -190,22 +188,23 @@ class ExportDialog(QDialog):
         }
 
     def retranslate_ui(self):
-        """Updates all texts in dialog when language changes."""
-        self.setWindowTitle(tr("Export Chat"))
-        self.findChild(QLabel, "dir_label").setText(tr("Folder to save:"))
-        self.btn_browse_dir.setText(tr("Browse..."))
-        self.checkbox_use_default_dir.setText(tr("Use as default folder"))
-        self.btn_set_favorite.setText(tr("To Favorites"))
-        self.btn_use_favorite.setText(tr("From Favorites"))
-        self.findChild(QLabel, "name_label").setText(tr("File name (without extension):"))
+        self.setWindowTitle(tr("dialog.export.title"))
+        self.findChild(QLabel, "dir_label").setText(tr("export.folder_to_save"))
+        self.btn_browse_dir.setText(tr("common.browse"))
+        self.checkbox_use_default_dir.setText(tr("export.use_default_folder"))
+        self.btn_set_favorite.setText(tr("export.to_favorites"))
+        self.btn_use_favorite.setText(tr("export.from_favorites"))
+        self.findChild(QLabel, "name_label").setText(tr("export.filename_without_ext"))
 
         if hasattr(self, 'ok_button'):
-            self.ok_button.setText(tr("Save"))
+            self.ok_button.setText(tr("common.save"))
         if hasattr(self, 'cancel_button'):
-            self.cancel_button.setText(tr("Cancel"))
+            self.cancel_button.setText(tr("common.cancel"))
+
+    def update_language(self, _lang_code: str | None = None):
+        self.retranslate_ui()
 
     def refresh_theme_styles(self):
-        """Forces dialog styles to update."""
         self.style().unpolish(self)
         self.style().polish(self)
         self.update()
@@ -216,12 +215,10 @@ class ExportDialog(QDialog):
             self.btn_browse_dir.setIcon(get_app_icon(AppIcon.FOLDER_OPEN))
 
     def mousePressEvent(self, event: QMouseEvent):
-        """Removes focus from input fields when clicking on empty area."""
         self.clear_input_focus()
         super().mousePressEvent(event)
 
     def clear_input_focus(self):
-        """Removes focus if it's set on QLineEdit."""
         focused_widget = self.focusWidget()
         if focused_widget and isinstance(focused_widget, QLineEdit):
             focused_widget.clearFocus()

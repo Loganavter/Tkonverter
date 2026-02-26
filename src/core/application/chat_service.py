@@ -1,15 +1,14 @@
-"""
-Service for working with chats.
 
-Responsible for loading, parsing and validating chat data.
-Does not depend on PyQt or other UI frameworks.
-"""
 
 import json
+import logging
 import os
-from typing import Any, Dict, Optional
+import threading
+from typing import Any, Callable, Dict, Optional
 
 from src.core.domain.models import Chat, User, Message
+
+logger = logging.getLogger(__name__)
 from src.core.parsing.json_parser import (
     get_parsing_statistics,
     parse_chat_from_dict,
@@ -17,50 +16,86 @@ from src.core.parsing.json_parser import (
 )
 
 class ChatLoadError(Exception):
-    """Exception when chat loading error occurs."""
 
     pass
 
 class ChatService:
-    """Service for working with chats."""
 
     def __init__(self):
         self._current_chat: Optional[Chat] = None
         self._chat_file_path: Optional[str] = None
+        self._status_listeners: list[Callable[[str], None]] = []
+        self._error_listeners: list[Callable[[str], None]] = []
+        self._listeners_lock = threading.Lock()
+
+    def add_status_listener(self, callback: Callable[[str], None]):
+        with self._listeners_lock:
+            if callback not in self._status_listeners:
+                self._status_listeners.append(callback)
+
+    def remove_status_listener(self, callback: Callable[[str], None]):
+        with self._listeners_lock:
+            if callback in self._status_listeners:
+                self._status_listeners.remove(callback)
+
+    def add_error_listener(self, callback: Callable[[str], None]):
+        with self._listeners_lock:
+            if callback not in self._error_listeners:
+                self._error_listeners.append(callback)
+
+    def remove_error_listener(self, callback: Callable[[str], None]):
+        with self._listeners_lock:
+            if callback in self._error_listeners:
+                self._error_listeners.remove(callback)
+
+    def _emit_status(self, message: str):
+        with self._listeners_lock:
+            callbacks = tuple(self._status_listeners)
+        for callback in callbacks:
+            try:
+                callback(message)
+            except Exception:
+                logger.debug("ChatService status listener failed", exc_info=True)
+
+    def _emit_error(self, message: str):
+        with self._listeners_lock:
+            callbacks = tuple(self._error_listeners)
+        for callback in callbacks:
+            try:
+                callback(message)
+            except Exception:
+                logger.debug("ChatService error listener failed", exc_info=True)
 
     def load_chat_from_file(self, file_path: str) -> Chat:
-        """
-        Loads chat from JSON file.
+        self._emit_status("Loading file...")
 
-        Args:
-            file_path: Path to JSON file
-
-        Returns:
-            Chat: Loaded and parsed chat
-
-        Raises:
-            ChatLoadError: On loading or parsing error
-        """
         if not os.path.exists(file_path):
+            self._emit_error(f"Файл не найден: {file_path}")
             raise ChatLoadError(f"File not found: {file_path}")
 
         if os.path.getsize(file_path) == 0:
+            self._emit_error(f"Файл пустой: {file_path}")
             raise ChatLoadError(f"File is empty: {file_path}")
 
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 raw_data = json.load(f)
         except json.JSONDecodeError as e:
+            self._emit_error(f"Ошибка парсинга JSON: {e}")
             raise ChatLoadError(f"JSON parsing error: {e}")
         except (IOError, OSError) as e:
+            self._emit_error(f"Ошибка чтения файла: {e}")
             raise ChatLoadError(f"File reading error: {e}")
 
+        self._emit_status("Checking chat data structure...")
         validation_issues = validate_chat_data(raw_data)
         if validation_issues:
             issues_str = "; ".join(validation_issues)
+            self._emit_error(f"Некорректные данные чата: {issues_str}")
             raise ChatLoadError(f"Invalid chat data: {issues_str}")
 
         try:
+            self._emit_status("Parsing messages...")
             chat = parse_chat_from_dict(raw_data)
             self._current_chat = chat
             self._chat_file_path = file_path
@@ -68,35 +103,23 @@ class ChatService:
             return chat
 
         except (ValueError, KeyError) as e:
+            self._emit_error(f"Ошибка парсинга чата: {e}")
             raise ChatLoadError(f"Chat parsing error: {e}")
 
     def get_current_chat(self) -> Optional[Chat]:
-        """Returns currently loaded chat."""
         return self._current_chat
 
     def get_current_file_path(self) -> Optional[str]:
-        """Returns path to current chat file."""
         return self._chat_file_path
 
     def has_chat_loaded(self) -> bool:
-        """Checks if chat is loaded."""
         return self._current_chat is not None
 
     def clear_current_chat(self):
-        """Clears current chat."""
         self._current_chat = None
         self._chat_file_path = None
 
     def get_chat_statistics(self, chat: Optional[Chat] = None) -> Dict[str, Any]:
-        """
-        Returns chat statistics.
-
-        Args:
-            chat: Chat to analyze. If None, current chat is used.
-
-        Returns:
-            Dict[str, Any]: Dictionary with statistics
-        """
         target_chat = chat or self._current_chat
         if not target_chat:
             return {}
@@ -128,15 +151,6 @@ class ChatService:
         }
 
     def validate_file_before_load(self, file_path: str) -> Dict[str, Any]:
-        """
-        Validates chat file without full loading.
-
-        Args:
-            file_path: Path to file for validation
-
-        Returns:
-            Dict[str, Any]: Validation result with file information
-        """
         result = {
             "is_valid": False,
             "file_exists": False,
@@ -182,15 +196,6 @@ class ChatService:
         return result
 
     def detect_chat_type(self, chat: Optional[Chat] = None) -> str:
-        """
-        Detects chat type.
-
-        Args:
-            chat: Chat to analyze. If None, current chat is used.
-
-        Returns:
-            str: Chat type ('group', 'personal', 'posts', 'channel')
-        """
         target_chat = chat or self._current_chat
         if not target_chat:
             return "group"
@@ -199,15 +204,6 @@ class ChatService:
         return detected_type
 
     def get_user_activity_stats(self, chat: Optional[Chat] = None) -> Dict[str, Dict[str, Any]]:
-        """
-        Returns user activity statistics.
-
-        Args:
-            chat: Chat to analyze. If None, current chat is used.
-
-        Returns:
-            Dict[str, Dict[str, Any]]: Statistics by users
-        """
         target_chat = chat or self._current_chat
         if not target_chat:
             return {}
@@ -247,15 +243,6 @@ class ChatService:
         return user_stats
 
     def get_daily_activity(self, chat: Optional[Chat] = None) -> Dict[str, int]:
-        """
-        Returns activity by day.
-
-        Args:
-            chat: Chat to analyze. If None, current chat is used.
-
-        Returns:
-            Dict[str, int]: Dictionary day -> number of messages
-        """
         target_chat = chat or self._current_chat
         if not target_chat:
             return {}

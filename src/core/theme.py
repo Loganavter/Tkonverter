@@ -1,7 +1,4 @@
-"""
-Theme palettes for Tkonverter application.
-This file contains project-specific color palettes.
-"""
+
 
 from PyQt6.QtGui import QColor
 

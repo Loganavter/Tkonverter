@@ -5,10 +5,10 @@ from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from events.drag_drop_handler import DragAndDropService
-from shared_toolkit.ui.managers.theme_manager import ThemeManager
-from ..atomic./tooltips import PathTooltip
-from shared_toolkit.ui.widgets.list_items.rating_item import RatingListItem
-from ..atomic./minimalist_scrollbar import OverlayScrollArea
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.atomic.tooltips import PathTooltip
+from src.shared_toolkit.ui.widgets.list_items.rating_item import RatingListItem
+from src.shared_toolkit.ui.widgets.atomic.minimalist_scrollbar import OverlayScrollArea
 
 class _ListOwnerProxy:
     def __init__(self, image_number: int):
