@@ -95,8 +95,8 @@ chmod +x launcher.sh
 ```
 Use `./launcher.sh --help` for a full list of commands (including `recreate`, `delete`, `profile`). Dependencies: `requirements-gui.txt` for GUI (and CLI from repo); `requirements-cli.txt` for CLI-only (e.g. server, no PyQt). See [docs/INSTALL.md](docs/INSTALL.md).
 
-### 🪟 Windows, 🐧 Linux, 🍏 macOS
-Installers and distribution packages are planned for the future. Contributions are welcome!
+### 🪟 Windows
+See [docs/INSTALL.md](docs/INSTALL.md) or install it from last [release](https://github.com/Loganavter/tkonverter/releases) with inno setup.
 
 ---
 
