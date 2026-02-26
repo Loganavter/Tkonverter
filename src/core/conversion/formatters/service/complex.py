@@ -1,13 +1,13 @@
-from core.conversion.context import ConversionContext
-from core.conversion.formatters.media_formatter import format_media
-from core.conversion.utils import (
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.formatters.media_formatter import format_media
+from src.core.conversion.utils import (
     format_duration,
     format_member_list,
     pluralize_ru,
     process_text_to_plain,
     truncate_name,
 )
-from resources.translations import tr
+from src.resources.translations import tr
 
 def format_pin_message(msg: dict, context: ConversionContext) -> str:
     actor = truncate_name(msg.get("actor", tr("System")), context=context)
@@ -27,7 +27,7 @@ def format_pin_message(msg: dict, context: ConversionContext) -> str:
 
 def format_phone_call(msg: dict, context: ConversionContext) -> str:
     actor = truncate_name(msg.get("actor", tr("System")), context=context)
-    duration_sec = msg.get("duration_seconds")
+    duration_sec = msg.get("duration_seconds", msg.get("duration"))
     discard_reason = msg.get("discard_reason")
 
     is_group_call = msg.get("action") in ("group_call", "conference_call")
@@ -117,6 +117,8 @@ def format_game_score(msg: dict, context: ConversionContext) -> str:
     if game_message_id and (game_msg := context.message_map.get(game_message_id)):
         if game_info := game_msg.get("game_information"):
             game_title = game_info.get("game_title", "...")
+        elif game_msg.get("game_title"):
+            game_title = game_msg.get("game_title")
 
     return f"{actor} {tr('scored')} {score} {tr('points in game')} «{game_title}»"
 
@@ -138,8 +140,10 @@ def format_suggest_photo(msg: dict, context: ConversionContext) -> str:
     return f"{actor} {tr('suggested a new profile photo')}"
 
 def format_bot_allowed(msg: dict, context: ConversionContext) -> str:
-    if domain := msg.get("domain"):
+    if domain := (msg.get("domain") or msg.get("reason_domain")):
         return tr("allowed bot to send messages by logging in on") + f' {domain}'
+    if app_name := msg.get("reason_app_name"):
+        return tr("allowed bot to send messages by app") + f' "{app_name}"'
     return tr("allowed bot to send messages")
 
 def format_secure_values(msg: dict, context: ConversionContext) -> str:
@@ -152,12 +156,14 @@ def format_geo_proximity(msg: dict, context: ConversionContext) -> str:
     distance = msg.get("distance", 0)
     distance_str = f"{distance}m"
 
-    from_name = context.get_author_name({"from_id": from_id}) if from_id else "Someone"
-    to_name = context.get_author_name({"from_id": to_id}) if to_id else "someone"
+    from_name = (
+        context.get_author_name({"from_id": from_id}) if from_id else tr("Someone")
+    )
+    to_name = context.get_author_name({"from_id": to_id}) if to_id else tr("someone")
 
-    if from_id == context.my_id:
+    if from_id and context.my_id and from_id == context.my_id:
         return tr("you are now within {distance} of {user}").format(distance=distance_str, user=to_name)
-    elif to_id == context.my_id:
+    elif to_id and context.my_id and to_id == context.my_id:
         return f"{from_name} " + tr("is now within {distance} of you").format(distance=distance_str)
     else:
         return f"{from_name} " + tr("is now within {distance} of {user}").format(distance=distance_str, user=to_name)
@@ -166,3 +172,87 @@ def format_payment_refunded(msg: dict, context: ConversionContext) -> str:
     currency = msg.get("currency", "")
     amount = msg.get("amount", 0) / 100.0
     return tr("payment of {amount} {currency} was refunded").format(amount=f"{amount:.2f}", currency=currency)
+
+def format_invite_to_group_call(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    members = msg.get("members", [])
+    invited_members = [member for member in members if member and member != actor]
+    if invited_members:
+        members_str = format_member_list(invited_members, context=context)
+        return f"{actor} {tr('invited to video chat')} {members_str}"
+    return f"{actor} {tr('invited to video chat')}"
+
+def format_requested_phone_number(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    return f"{actor} {tr('requested phone number')}"
+
+def format_requested_peer(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    return f"{actor} {tr('requested peer')}"
+
+def format_send_ton_gift(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    cost = msg.get("cost", "")
+    if cost:
+        return f"{actor} {tr('gifted TON')} ({cost})"
+    return f"{actor} {tr('gifted TON')}"
+
+def format_paid_messages_refund(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    stars_count = msg.get("stars_count")
+    if stars_count is not None:
+        return f"{actor} {tr('paid messages refunded')} ({stars_count} ★)"
+    return f"{actor} {tr('paid messages refunded')}"
+
+def format_paid_messages_price_change(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    price_stars = msg.get("price_stars")
+    if price_stars is not None:
+        return f"{actor} {tr('paid messages price changed to')} {price_stars} ★"
+    return f"{actor} {tr('paid messages price changed')}"
+
+def format_giveaway_launch(msg: dict, context: ConversionContext) -> str:
+    return tr("giveaway launched")
+
+def format_giveaway_results(msg: dict, context: ConversionContext) -> str:
+    winners = msg.get("winners")
+    if winners is not None:
+        return tr("giveaway results announced with winners").format(winners=winners)
+    return tr("giveaway results announced")
+
+def format_process_suggested_post(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    if msg.get("rejected"):
+        return f"{actor} {tr('suggested post rejected')}"
+    return f"{actor} {tr('suggested post processed')}"
+
+def format_suggested_post_success(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    return f"{actor} {tr('suggested post published')}"
+
+def format_suggested_post_refund(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    return f"{actor} {tr('suggested post refunded')}"
+
+def format_suggest_birthday(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    day = msg.get("day")
+    month = msg.get("month")
+    year = msg.get("year")
+    if day and month and year:
+        return f"{actor} {tr('suggested birthday')} {day:02d}.{month:02d}.{year}"
+    return f"{actor} {tr('suggested birthday')}"
+
+def format_new_creator_pending(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    new_creator = truncate_name(msg.get("new_creator", ""), context=context)
+    if new_creator:
+        return f"{actor} {tr('creator change pending for')} {new_creator}"
+    return f"{actor} {tr('creator change pending')}"
+
+def format_change_creator(msg: dict, context: ConversionContext) -> str:
+    actor = truncate_name(msg.get("actor", tr("System")), context=context)
+    new_creator = truncate_name(msg.get("new_creator", ""), context=context)
+    if new_creator:
+        return f"{actor} {tr('changed chat owner to')} {new_creator}"
+    return f"{actor} {tr('changed chat owner')}"

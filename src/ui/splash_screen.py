@@ -2,9 +2,9 @@ from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QBrush, QPainter, QPen
 from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
-from resources.translations import tr
-from ui.theme import ThemeManager
-from ui.widgets.atomic.loading_spinner import LoadingSpinner
+from src.resources.translations import tr
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.ui.widgets.atomic.loading_spinner import LoadingSpinner
 
 class SplashScreen(QWidget):
     def __init__(self):
@@ -26,8 +26,8 @@ class SplashScreen(QWidget):
         layout.setSpacing(15)
 
         self.logo_placeholder = QLabel("Tkonverter")
+        self.logo_placeholder.setObjectName("splashLogoPlaceholder")
         self.logo_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.logo_placeholder.setStyleSheet("font-size: 24px; font-weight: bold;")
 
         self.spinner = LoadingSpinner(self)
 

@@ -3,15 +3,15 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from resources.translations import tr
-from ui.widgets.atomic.custom_button import CustomButton
-from utils.paths import resource_path
+from src.resources.translations import tr
+from src.shared_toolkit.ui.widgets.atomic.custom_button import CustomButton
+from src.shared_toolkit.utils.paths import resource_path
 
 def setup_dialog_scaffold(
     dialog: QDialog,
     main_layout: QVBoxLayout,
     ok_text: str,
-    cancel_text: str = tr("Cancel"),
+    cancel_text: str = tr("common.cancel"),
     show_cancel_button: bool = True,
 ):
     buttons_layout = QHBoxLayout()
@@ -19,9 +19,12 @@ def setup_dialog_scaffold(
 
     dialog.ok_button = CustomButton(None, ok_text)
     dialog.ok_button.setProperty("class", "primary")
-    dialog.ok_button.setFixedSize(100, 30)
+
+    ok_size = dialog.ok_button.sizeHint()
+    dialog.ok_button.setMinimumSize(max(ok_size.width(), 80), ok_size.height())
     dialog.cancel_button = CustomButton(None, cancel_text)
-    dialog.cancel_button.setFixedSize(100, 30)
+    cancel_size = dialog.cancel_button.sizeHint()
+    dialog.cancel_button.setMinimumSize(max(cancel_size.width(), 80), cancel_size.height())
 
     dialog.ok_button.clicked.connect(dialog.accept)
     dialog.cancel_button.clicked.connect(dialog.reject)
@@ -33,20 +36,11 @@ def setup_dialog_scaffold(
     main_layout.addLayout(buttons_layout)
 
 def setup_dialog_icon(dialog: QDialog):
-    """Sets icon for dialog."""
     icon_path = resource_path("resources/icons/icon.png")
     if os.path.exists(icon_path):
         dialog.setWindowIcon(QIcon(icon_path))
 
 def auto_size_dialog(dialog: QDialog, min_width: int = 300, min_height: int = 200):
-    """
-    Automatically calculates and sets dialog sizes based on content.
-
-    Args:
-        dialog: Dialog to update sizes for
-        min_width: Minimum width
-        min_height: Minimum height
-    """
 
     def _recalculate_sizes():
 
@@ -64,7 +58,6 @@ def auto_size_dialog(dialog: QDialog, min_width: int = 300, min_height: int = 20
     QTimer.singleShot(0, _recalculate_sizes)
 
 def _update_group_sizes(dialog: QDialog):
-    """Updates sizes of styled groups in dialog."""
     for child in dialog.findChildren(QWidget):
         if child.objectName() == "StyledGroupFrame":
             parent_group = child.parent()

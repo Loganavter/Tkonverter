@@ -1,14 +1,141 @@
+import logging
+import re
 from collections import Counter
 from datetime import datetime
-import logging
+from urllib.parse import urlparse
 
-from core.conversion.context import ConversionContext
-from core.conversion.formatters.service_formatter import format_service_message
-from core.conversion.message_formatter import format_message
-from core.conversion.utils import format_date_separator
-from resources.translations import tr
+from src.core.conversion.context import ConversionContext
 
 logger = logging.getLogger(__name__)
+from src.core.conversion.formatters.service_formatter import format_service_message
+from src.core.conversion.message_formatter import format_message
+from src.core.conversion.utils import format_date_separator
+from src.core.domain.anonymization import (
+    AnonymizationConfig,
+    FilterPreset,
+    LinkFilter,
+    LinkFilterType,
+    LinkMaskMode,
+)
+from src.resources.translations import tr
+
+class _LegacyAnonymizerAdapter:
+
+    _url_regex = re.compile(r"(https?://\S+|www\.\S+)")
+    _mention_regex = re.compile(r"@([a-zA-Z0-9_]{3,32})")
+
+    def __init__(self, config: AnonymizationConfig):
+        self.config = config
+        self._id_to_index: dict[str, int] = {}
+        self._name_to_index: dict[str, int] = {}
+        self._next_index = 1
+        self._url_to_index: dict[str, int] = {}
+        self._next_url_index = 1
+        self._names_regex = None
+
+    def _normalize_name(self, name: str | None) -> str:
+        if not name:
+            return ""
+        return re.sub(r"[^\w\s]", "", name).strip().lower()
+
+    def register_user(self, user_id: str | None = None, name: str | None = None):
+        if not user_id and not name:
+            return
+
+        index = None
+        normalized = self._normalize_name(name)
+        if user_id and user_id in self._id_to_index:
+            index = self._id_to_index[user_id]
+        elif normalized and normalized in self._name_to_index:
+            index = self._name_to_index[normalized]
+
+        if index is None:
+            index = self._next_index
+            self._next_index += 1
+
+        if user_id:
+            self._id_to_index[user_id] = index
+        if normalized:
+            self._name_to_index[normalized] = index
+
+    def _format_name(self, index: int) -> str:
+        return self.config.name_mask_format.format(index=index)
+
+    def anonymize_string_name(self, name: str) -> str:
+        if not self.config.enabled or not self.config.hide_names:
+            return name
+        normalized = self._normalize_name(name)
+        if normalized in self._name_to_index:
+            out = self._format_name(self._name_to_index[normalized])
+            return out
+        self.register_user(name=name)
+        out = self._format_name(self._name_to_index.get(normalized, 1))
+        return out
+
+    def get_anonymized_name(self, user_id: str, original_name: str) -> str:
+        if not self.config.enabled or not self.config.hide_names:
+            return original_name
+        if user_id and user_id in self._id_to_index:
+            return self._format_name(self._id_to_index[user_id])
+        return self.anonymize_string_name(original_name)
+
+    def _extract_domain(self, url: str) -> str:
+        s = (url or "").strip()
+        if not s:
+            return ""
+        if not s.startswith(("http://", "https://")):
+            s = "https://" + s
+        parsed = urlparse(s)
+        host = (parsed.netloc or "").strip().lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host or url
+
+    def _mask_url(self, url: str) -> str:
+        mode = self.config.link_mask_mode
+        if mode == LinkMaskMode.CUSTOM:
+            return self.config.link_mask_format
+        if mode == LinkMaskMode.INDEXED:
+            if url not in self._url_to_index:
+                self._url_to_index[url] = self._next_url_index
+                self._next_url_index += 1
+            return self.config.link_mask_format.format(index=self._url_to_index[url])
+        if mode == LinkMaskMode.DOMAIN_ONLY:
+            return self._extract_domain(url)
+        return tr("[СКРЫТО]")
+
+    def _process_mentions(self, text: str) -> str:
+        def repl(match):
+            username = match.group(1)
+            self.register_user(name=username)
+            normalized = self._normalize_name(username)
+            return self._format_name(self._name_to_index.get(normalized, 1))
+
+        return self._mention_regex.sub(repl, text)
+
+    def _rebuild_names_regex(self):
+        if not self.config.hide_names or not self._name_to_index:
+            self._names_regex = None
+            return
+        parts = [re.escape(name) for name in self._name_to_index.keys() if name]
+        self._names_regex = re.compile(rf"\b({'|'.join(sorted(parts, key=len, reverse=True))})\b", re.IGNORECASE) if parts else None
+
+    def process_text(self, text: str) -> str:
+        if not self.config.enabled or not isinstance(text, str):
+            return text
+        result = text
+        if self.config.hide_links:
+            result = self._url_regex.sub(lambda m: self._mask_url(m.group(0)), result)
+        if self.config.hide_names:
+            result = self._process_mentions(result)
+            if self._names_regex:
+                result = self._names_regex.sub(
+                    lambda m: self._format_name(
+                        self._name_to_index.get(self._normalize_name(m.group(0)), 1)
+                    ),
+                    result,
+                )
+        return result
 
 def _filter_messages_by_disabled_nodes(
     messages: list, disabled_nodes: set | None = None
@@ -30,7 +157,6 @@ def _filter_messages_by_disabled_nodes(
     disabled_date_strings = set()
 
     def _get_descendant_day_nodes(node) -> list:
-        """Recursively gets all descendant day nodes (tree leaves)."""
 
         children_to_scan = []
         if hasattr(node, "children") and node.children:
@@ -50,7 +176,6 @@ def _filter_messages_by_disabled_nodes(
         return day_nodes
 
     def _get_date_path(node) -> tuple:
-        """Gets the full path to the root for date construction."""
         path_parts = []
         current = node
         depth = 0
@@ -63,7 +188,6 @@ def _filter_messages_by_disabled_nodes(
         return path_parts
 
     def _generate_date_patterns_for_node(node, available_years) -> set:
-        """Generates date patterns for a node of any level."""
         node_name = getattr(node, 'name', 'UNKNOWN')
         node_level = getattr(node, "date_level", None)
 
@@ -248,13 +372,100 @@ def _filter_messages_by_disabled_nodes(
 
     return filtered_messages
 
+def _create_anonymization_config(config_dict: dict) -> AnonymizationConfig:
+    enabled = bool(config_dict.get("enabled", False))
+    hide_links = bool(config_dict.get("hide_links", False))
+    hide_names = bool(config_dict.get("hide_names", False))
+    name_mask_format = config_dict.get("name_mask_format", "[ИМЯ {index}]")
+
+    raw_mode = config_dict.get("link_mask_mode", "simple")
+    try:
+        link_mask_mode = LinkMaskMode(raw_mode)
+    except ValueError:
+        link_mask_mode = LinkMaskMode.SIMPLE
+
+    link_mask_format = config_dict.get("link_mask_format", "[ССЫЛКА {index}]")
+
+    active_preset = None
+    preset_dict = config_dict.get("active_preset")
+
+    if isinstance(preset_dict, dict):
+        preset_filters = []
+        for f_dict in preset_dict.get("filters", []):
+            if not isinstance(f_dict, dict):
+                continue
+            filter_type = LinkFilterType(f_dict.get("type", "domain"))
+            filter_value = f_dict.get("value", "")
+            filter_enabled = f_dict.get("enabled", True)
+            preset_filters.append(LinkFilter(type=filter_type, value=filter_value, enabled=filter_enabled))
+        active_preset = FilterPreset(name=preset_dict.get("name", ""), filters=preset_filters)
+
+    custom_filters = []
+    for f_dict in config_dict.get("custom_filters", []):
+        if not isinstance(f_dict, dict):
+            continue
+        filter_type = LinkFilterType(f_dict.get("type", "domain"))
+        filter_value = f_dict.get("value", "")
+        filter_enabled = f_dict.get("enabled", True)
+        custom_filters.append(LinkFilter(type=filter_type, value=filter_value, enabled=filter_enabled))
+
+    custom_names = config_dict.get("custom_names", [])
+
+    return AnonymizationConfig(
+        enabled=enabled,
+        hide_links=hide_links,
+        hide_names=hide_names,
+        name_mask_format=name_mask_format,
+        link_mask_mode=link_mask_mode,
+        link_mask_format=link_mask_format,
+        active_preset=active_preset,
+        custom_filters=custom_filters,
+        custom_names=custom_names
+    )
+
 def _initialize_context(data: dict, config: dict) -> ConversionContext:
-    chat_name = data.get("name", tr("Unknown Chat"))
+    chat_name = data.get("name", tr("common.unknown_chat"))
     message_map = {msg["id"]: msg for msg in data.get("messages", []) if "id" in msg}
 
     context = ConversionContext(
         config=config, message_map=message_map, chat_name=chat_name
     )
+
+    anonymization_config_dict = config.get("anonymization", {})
+    if isinstance(anonymization_config_dict, dict) and anonymization_config_dict:
+        anonymization_config = _create_anonymization_config(anonymization_config_dict)
+        if anonymization_config.enabled:
+
+            context.anonymizer = _LegacyAnonymizerAdapter(anonymization_config)
+
+            my_name_cfg = config.get("my_name")
+            if my_name_cfg:
+                context.anonymizer.register_user(name=my_name_cfg)
+
+            partner_name_cfg = config.get("partner_name")
+            if partner_name_cfg:
+                context.anonymizer.register_user(name=partner_name_cfg)
+
+            messages = data.get("messages", [])
+
+            for msg in messages:
+                if msg.get("from"):
+                    context.anonymizer.register_user(name=msg.get("from"))
+                if msg.get("forwarded_from"):
+                    context.anonymizer.register_user(name=msg.get("forwarded_from"))
+                if msg.get("type") == "service":
+                    actor = msg.get("actor")
+                    if actor:
+                        context.anonymizer.register_user(name=actor)
+                    for m in msg.get("members", []):
+                        context.anonymizer.register_user(name=m)
+                if "reactions" in msg:
+                    for reaction in msg["reactions"]:
+                        for recent in reaction.get("recent", []):
+                            if recent.get("from"):
+                                context.anonymizer.register_user(name=recent.get("from"))
+
+            context.anonymizer._rebuild_names_regex()
 
     if config.get("profile") == "personal":
         authors = {}
@@ -307,11 +518,29 @@ def _initialize_context(data: dict, config: dict) -> ConversionContext:
                 context.chat_name = channel_name
             context.main_post_id = first_message.get("id")
 
+    if context.anonymizer and context.chat_name:
+        if context.anonymizer.config.hide_links:
+            context.chat_name = context.anonymizer.process_text(context.chat_name)
+        if context.anonymizer.config.hide_names:
+            context.chat_name = context.anonymizer.anonymize_string_name(context.chat_name)
+
     return context
 
 def generate_plain_text(
     data: dict, config: dict, html_mode: bool = False, disabled_nodes: set | None = None
 ) -> str:
+    segments, _ = _build_plain_text_segments(
+        data=data,
+        config=config,
+        html_mode=html_mode,
+        disabled_nodes=disabled_nodes,
+    )
+    result = "".join(part for _, part in segments).strip() + "\n"
+    return result
+
+def _build_plain_text_segments(
+    data: dict, config: dict, html_mode: bool = False, disabled_nodes: set | None = None
+) -> tuple[list[tuple[str | None, str]], list[dict]]:
 
     all_messages = data.get("messages", [])
     messages = _filter_messages_by_disabled_nodes(all_messages, disabled_nodes)
@@ -321,40 +550,46 @@ def generate_plain_text(
 
     context = _initialize_context(filtered_data, config)
 
-    output_parts = []
+    output_parts: list[tuple[str | None, str]] = []
 
     profile = context.config.get("profile", "group")
 
     if profile == "personal":
-        title_text = tr("Personal correspondence")
+        title_text = tr("profile.personal")
     elif profile == "posts":
-        title_text = tr("Channel")
+        title_text = tr("profile.channel")
     elif profile == "channel":
-        title_text = tr("Channel")
+        title_text = tr("profile.channel")
     else:
-        title_text = tr("Group chat")
+        title_text = tr("profile.group_chat")
 
-    output_parts.append(f"{title_text}: {context.chat_name}\n")
-    output_parts.append("========================================\n\n")
+    output_parts.append((None, f"{title_text}: {context.chat_name}\n"))
+    output_parts.append((None, "========================================\n\n"))
 
     if context.config["profile"] == "personal" and context.my_id and context.partner_id:
         my_name_cfg = context.config["my_name"]
-        my_full_name = context.my_full_name or tr("Unknown")
+        my_full_name = context.my_full_name or tr("common.unknown")
         partner_name_cfg = context.config["partner_name"]
-        partner_full_name = context.partner_full_name or tr("Unknown")
+        partner_full_name = context.partner_full_name or tr("common.unknown")
 
-        output_parts.append(f"{tr('Participants')}:\n")
-        output_parts.append(f"- {my_full_name}: {my_name_cfg}\n")
-        output_parts.append(f"- {partner_full_name}: {partner_name_cfg}\n\n")
+        if context.anonymizer:
+            my_full_name = context.anonymizer.get_anonymized_name(context.my_id, my_full_name)
+            partner_full_name = context.anonymizer.get_anonymized_name(context.partner_id, partner_full_name)
+            my_name_cfg = context.anonymizer.get_anonymized_name(context.my_id, my_name_cfg)
+            partner_name_cfg = context.anonymizer.get_anonymized_name(context.partner_id, partner_name_cfg)
 
-        output_parts.append(f"{tr('Reaction notation')}:\n")
+        output_parts.append((None, f"{tr('export.participants')}:\n"))
+        output_parts.append((None, f"- {my_full_name}: {my_name_cfg}\n"))
+        output_parts.append((None, f"- {partner_full_name}: {partner_name_cfg}\n\n"))
+
+        output_parts.append((None, f"{tr('export.reaction_notation')}:\n"))
         if html_mode:
-            output_parts.append(f"- &gt;&gt; {tr('from')} '{my_name_cfg}'\n")
-            output_parts.append(f"- &lt;&lt; {tr('from')} '{partner_name_cfg}'\n")
+            output_parts.append((None, f"- &gt;&gt; {tr('export.from_label')} '{my_name_cfg}'\n"))
+            output_parts.append((None, f"- &lt;&lt; {tr('export.from_label')} '{partner_name_cfg}'\n"))
         else:
-            output_parts.append(f"- >> {tr('from')} '{my_name_cfg}'\n")
-            output_parts.append(f"- << {tr('from')} '{partner_name_cfg}'\n")
-        output_parts.append("========================================\n\n")
+            output_parts.append((None, f"- >> {tr('export.from_label')} '{my_name_cfg}'\n"))
+            output_parts.append((None, f"- << {tr('export.from_label')} '{partner_name_cfg}'\n"))
+        output_parts.append((None, "========================================\n\n"))
 
     previous_message = None
 
@@ -362,13 +597,15 @@ def generate_plain_text(
         try:
             first_msg_dt = datetime.fromisoformat(messages[0]["date"])
             separator = format_date_separator(first_msg_dt)
-            output_parts.append(f"{separator}\n")
+            current_date_key = str(messages[0].get("date", ""))[:10] or None
+            output_parts.append((current_date_key, f"{separator}\n"))
         except (KeyError, ValueError) as e:
             pass
 
     processed_count = 0
 
     for i, msg in enumerate(messages):
+        current_date_key = str(msg.get("date", ""))[:10] or None
         if previous_message:
             try:
                 current_dt = datetime.fromisoformat(msg["date"])
@@ -376,7 +613,7 @@ def generate_plain_text(
 
                 if current_dt.date() > prev_dt.date():
                     separator = format_date_separator(current_dt)
-                    output_parts.append(f"\n{separator}\n")
+                    output_parts.append((current_date_key, f"\n{separator}\n"))
             except (KeyError, ValueError) as e:
                 pass
 
@@ -390,11 +627,9 @@ def generate_plain_text(
             formatted_text = format_message(msg, previous_message, context, html_mode)
 
         if formatted_text:
-            output_parts.append(formatted_text)
+            output_parts.append((current_date_key, formatted_text))
             processed_count += 1
 
         previous_message = msg
 
-    result = "".join(output_parts).strip() + "\n"
-
-    return result
+    return output_parts, messages

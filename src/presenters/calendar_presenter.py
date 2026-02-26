@@ -1,35 +1,38 @@
-"""
-Presenter for calendar dialog.
 
-Manages communication between CalendarService and UI components,
-processes user interactions and maintains ViewModel state.
-"""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Set, Dict, Any
 
 from PyQt6.QtCore import QDate, QObject, pyqtSignal
 
 logger = logging.getLogger(__name__)
 
-from core.analysis.tree_analyzer import TreeNode
-from core.application.calendar_service import CalendarService, DateHierarchy
-from core.conversion.context import ConversionContext
-from core.conversion.message_formatter import format_message
-from resources.translations import tr
-from core.view_models import CalendarDayInfo, CalendarMonthInfo, CalendarViewModel
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.application.calendar_service import CalendarService, DateHierarchy
+from src.core.application.chat_memory_service import ChatMemoryService
+from src.core.conversion.main_converter import _build_plain_text_segments, _initialize_context
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.message_formatter import format_message
+from src.core.conversion.utils import markdown_to_html_for_preview
+from src.resources.translations import tr
+from src.core.view_models import CalendarDayInfo, CalendarMonthInfo, CalendarViewModel
 
 class CalendarPresenter(QObject):
-    """Presenter for calendar dialog."""
 
     view_model_updated = pyqtSignal(object)
     messages_for_date_updated = pyqtSignal(object)
     filter_changed = pyqtSignal(set)
+    preview_conflict_detected = pyqtSignal(object)
 
-    def __init__(self, calendar_service: CalendarService):
+    def __init__(
+        self,
+        calendar_service: CalendarService,
+        chat_memory_service: Optional[ChatMemoryService] = None,
+    ):
         super().__init__()
         self._calendar_service = calendar_service
+        self._chat_memory_service = chat_memory_service
         self._current_hierarchy: Optional[DateHierarchy] = None
         self._current_disabled_nodes: Set[TreeNode] = set()
         self._view_model = CalendarViewModel(current_year=2024, current_month=1, current_day=1)
@@ -39,6 +42,11 @@ class CalendarPresenter(QObject):
 
         self._raw_messages: List[Dict[str, Any]] = []
         self._conversion_context: Optional[ConversionContext] = None
+        self._config: Dict[str, Any] = {}
+        self._chat_id: Optional[int] = None
+        self._day_overrides: Dict[str, Dict[str, str]] = {}
+        self._conflict_payloads: Dict[str, Dict[str, Any]] = {}
+        self._disabled_date_keys: Set[str] = set()
 
     def load_calendar_data(
         self,
@@ -47,24 +55,47 @@ class CalendarPresenter(QObject):
         initial_disabled_nodes: Set[TreeNode],
         token_hierarchy: dict | None = None,
         config: dict | None = None,
+        chat_id: Optional[int] = None,
     ):
+        self._chat_id = chat_id
         self._raw_messages = raw_messages
         self._current_hierarchy = self._calendar_service.build_date_hierarchy_from_raw_messages(
             raw_messages, analysis_tree
         )
         self._current_disabled_nodes = initial_disabled_nodes.copy()
         self._token_hierarchy = token_hierarchy or {}
+        self._day_overrides = {}
+        self._conflict_payloads = {}
+        self._disabled_date_keys = set()
+
+        if self._chat_id is not None and self._chat_memory_service:
+            memory = self._chat_memory_service.load_memory(self._chat_id)
+            self._day_overrides = dict(memory.get("day_overrides", {}))
+
+            memory_disabled = memory.get("disabled_dates", [])
+            for date_key in memory_disabled:
+                pydate = self._date_key_to_pydate(date_key)
+                node = self._current_hierarchy.date_to_node_map.get(pydate)
+                if node:
+                    self._current_disabled_nodes.add(node)
+                else:
+                    self._disabled_date_keys.add(date_key)
 
         if config:
-            message_map = {msg["id"]: msg for msg in raw_messages if "id" in msg}
-            self._conversion_context = ConversionContext(config=config, message_map=message_map)
+            self._config = dict(config)
+            data = {"name": tr("common.unknown_chat"), "messages": raw_messages}
+            self._conversion_context = _initialize_context(data, config)
 
         start_date, end_date = self._current_hierarchy.get_date_range()
         initial_date = end_date or start_date
         if initial_date:
-            self._view_model.current_year = initial_date.year()
-            self._view_model.current_month = initial_date.month()
-            self.last_valid_selection = initial_date
+            self._view_model.current_year = initial_date.year
+            self._view_model.current_month = initial_date.month
+            self.last_valid_selection = QDate(
+                initial_date.year,
+                initial_date.month,
+                initial_date.day,
+            )
         else:
             today = QDate.currentDate()
             self._view_model.current_year = today.year()
@@ -76,15 +107,137 @@ class CalendarPresenter(QObject):
             self.emit_messages_for_date(self.last_valid_selection)
 
     def emit_messages_for_date(self, date: QDate):
-        """Formats and emits messages for specified date."""
+        self.messages_for_date_updated.emit(self.get_messages_html_for_date(date))
 
-        formatted_messages = self._format_messages_for_date(date)
-        self.messages_for_date_updated.emit(formatted_messages)
+    def get_messages_html_for_date(self, date: QDate) -> str:
+        formatted_messages = self.get_effective_text_for_date(date)
+        return markdown_to_html_for_preview(formatted_messages)
 
-    def _format_messages_for_date(self, date: QDate) -> str:
-        """Internal method for formatting messages for a day."""
+    def get_effective_text_for_date(self, date: QDate) -> str:
+        original_text = self._get_export_text_for_date(date)
+        date_key = self._qdate_to_key(date)
+        override = self._day_overrides.get(date_key)
+        if not override or not self._chat_memory_service:
+            return original_text
+
+        current_hash = self._chat_memory_service.hash_text(original_text)
+        saved_hash = str(override.get("original_hash", ""))
+        if current_hash == saved_hash:
+            text = str(override.get("edited_text", original_text))
+            if self._conversion_context and self._conversion_context.anonymizer:
+                text = self._conversion_context.anonymizer.process_text(text)
+            return text
+
+        payload = self._build_conflict_payload(date_key, original_text, override)
+        self._conflict_payloads[date_key] = payload
+        self.preview_conflict_detected.emit(payload)
+        return original_text
+
+    def get_original_text_for_date(self, date: QDate) -> str:
+        return self._get_export_text_for_date(date)
+
+    def get_editable_text_for_date(self, date: QDate) -> str:
+        date_key = self._qdate_to_key(date)
+        if date_key in self._conflict_payloads:
+            return str(self._conflict_payloads[date_key].get("current_original", ""))
+        override = self._day_overrides.get(date_key)
+        if override:
+            return str(override.get("edited_text", ""))
+        return self.get_original_text_for_date(date)
+
+    def has_day_override(self, date: QDate) -> bool:
+        return self._qdate_to_key(date) in self._day_overrides
+
+    def save_day_preview_edit(self, date: QDate, edited_text: str):
+        if self._chat_id is None or not self._chat_memory_service:
+            return
+
+        date_key = self._qdate_to_key(date)
+        original_text = self.get_original_text_for_date(date)
+        if (edited_text or "") == (original_text or ""):
+            self._chat_memory_service.delete_day_override(self._chat_id, date_key)
+            self._day_overrides.pop(date_key, None)
+            self._conflict_payloads.pop(date_key, None)
+            return
+
+        self._chat_memory_service.upsert_day_override(
+            chat_id=self._chat_id,
+            date_key=date_key,
+            original_text=original_text,
+            edited_text=edited_text,
+        )
+        self._day_overrides[date_key] = {
+            "original_hash": self._chat_memory_service.hash_text(original_text),
+            "original_text": original_text,
+            "edited_text": edited_text,
+            "edited_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self._conflict_payloads.pop(date_key, None)
+
+    def clear_day_preview_edit(self, date: QDate):
+        if self._chat_id is None or not self._chat_memory_service:
+            return
+        date_key = self._qdate_to_key(date)
+        self._chat_memory_service.delete_day_override(self._chat_id, date_key)
+        self._day_overrides.pop(date_key, None)
+        self._conflict_payloads.pop(date_key, None)
+
+    def resolve_day_conflict(
+        self, date_key: str, decision: str, merged_text: Optional[str] = None
+    ):
+        if self._chat_id is None or not self._chat_memory_service:
+            return
+        payload = self._conflict_payloads.get(date_key)
+        if not payload:
+            return
+
+        current_original = str(payload.get("current_original", ""))
+        saved_edited = str(payload.get("saved_edited", ""))
+        if decision == "show_new":
+            self._chat_memory_service.delete_day_override(self._chat_id, date_key)
+            self._day_overrides.pop(date_key, None)
+        elif decision == "keep_saved":
+            self._chat_memory_service.upsert_day_override(
+                chat_id=self._chat_id,
+                date_key=date_key,
+                original_text=current_original,
+                edited_text=saved_edited,
+            )
+            self._day_overrides[date_key] = {
+                "original_hash": self._chat_memory_service.hash_text(current_original),
+                "original_text": current_original,
+                "edited_text": saved_edited,
+                "edited_at": datetime.now(timezone.utc).isoformat(),
+            }
+        elif decision == "apply_over_new":
+            next_text = merged_text if merged_text is not None else saved_edited
+            self._chat_memory_service.upsert_day_override(
+                chat_id=self._chat_id,
+                date_key=date_key,
+                original_text=current_original,
+                edited_text=next_text,
+            )
+            self._day_overrides[date_key] = {
+                "original_hash": self._chat_memory_service.hash_text(current_original),
+                "original_text": current_original,
+                "edited_text": next_text,
+                "edited_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        self._conflict_payloads.pop(date_key, None)
+
+    def persist_chat_memory(self):
+        if self._chat_id is None or not self._chat_memory_service or not self._current_hierarchy:
+            return
+        filtered = self._calendar_service.get_filtered_dates(
+            self._current_disabled_nodes, self._current_hierarchy
+        )
+        disabled_dates = {d.isoformat() for d in filtered} | self._disabled_date_keys
+        self._chat_memory_service.update_disabled_dates(self._chat_id, disabled_dates)
+
+    def _format_messages_for_date(self, date: QDate, html_mode: bool = True) -> str:
         if not self._raw_messages or not self._conversion_context:
-            return tr("No messages on this date.")
+            return tr("dialog.calendar.no_messages")
 
         messages_for_day = [
             msg for msg in self._raw_messages
@@ -92,7 +245,7 @@ class CalendarPresenter(QObject):
         ]
 
         if not messages_for_day:
-            return tr("No messages on this date.")
+            return tr("dialog.calendar.no_messages")
 
         output_parts = []
         previous_message = None
@@ -102,7 +255,7 @@ class CalendarPresenter(QObject):
             formatted_text = ""
             if msg.get("type") == "message":
                 formatted_text = format_message(
-                    msg, previous_message, self._conversion_context, html_mode=True
+                    msg, previous_message, self._conversion_context, html_mode=html_mode
                 )
                 previous_message = msg
             if formatted_text:
@@ -118,24 +271,40 @@ class CalendarPresenter(QObject):
     def navigate_previous(self):
         current_date_base = QDate(self._view_model.current_year, self._view_model.current_month, 1)
         if self._view_model.view_mode == "days":
-            new_date = self._calendar_service.find_adjacent_month(current_date_base, -1, self._current_hierarchy)
+            new_date = self._calendar_service.find_adjacent_month(
+                current_date_base.toPyDate(),
+                -1,
+                self._current_hierarchy,
+            )
             if new_date:
-                self.navigate_to_date(new_date)
+                self.navigate_to_date(QDate(new_date.year, new_date.month, new_date.day))
         elif self._view_model.view_mode == "months":
-            new_date = self._calendar_service.find_adjacent_year(current_date_base, -1, self._current_hierarchy)
+            new_date = self._calendar_service.find_adjacent_year(
+                current_date_base.toPyDate(),
+                -1,
+                self._current_hierarchy,
+            )
             if new_date:
-                self.navigate_to_date(new_date)
+                self.navigate_to_date(QDate(new_date.year, new_date.month, new_date.day))
 
     def navigate_next(self):
         current_date_base = QDate(self._view_model.current_year, self._view_model.current_month, 1)
         if self._view_model.view_mode == "days":
-            new_date = self._calendar_service.find_adjacent_month(current_date_base, 1, self._current_hierarchy)
+            new_date = self._calendar_service.find_adjacent_month(
+                current_date_base.toPyDate(),
+                1,
+                self._current_hierarchy,
+            )
             if new_date:
-                self.navigate_to_date(new_date)
+                self.navigate_to_date(QDate(new_date.year, new_date.month, new_date.day))
         elif self._view_model.view_mode == "months":
-            new_date = self._calendar_service.find_adjacent_year(current_date_base, 1, self._current_hierarchy)
+            new_date = self._calendar_service.find_adjacent_year(
+                current_date_base.toPyDate(),
+                1,
+                self._current_hierarchy,
+            )
             if new_date:
-                self.navigate_to_date(new_date)
+                self.navigate_to_date(QDate(new_date.year, new_date.month, new_date.day))
 
     def navigate_to_date(self, date: QDate):
         self._view_model.current_year = date.year()
@@ -143,7 +312,10 @@ class CalendarPresenter(QObject):
         self._update_view_model()
 
     def select_date(self, date: QDate):
-        if self._current_hierarchy and self._calendar_service.get_message_count_for_date(date, self._current_hierarchy) > 0:
+        if self._current_hierarchy and self._calendar_service.get_message_count_for_date(
+            date.toPyDate(),
+            self._current_hierarchy,
+        ) > 0:
             self.last_valid_selection = date
             self._update_view_model()
             self.emit_messages_for_date(date)
@@ -158,10 +330,18 @@ class CalendarPresenter(QObject):
         self.set_view_mode("months")
 
     def toggle_filter_for_date(self, date: QDate):
-        if not self._current_hierarchy: return
-        node = self._current_hierarchy.date_to_node_map.get(date)
+        if not self._current_hierarchy:
+            return
+        date_key = self._qdate_to_key(date)
+        node = self._current_hierarchy.date_to_node_map.get(date.toPyDate())
         if node:
             self.toggle_filter_for_node(node)
+        else:
+            if date_key in self._disabled_date_keys:
+                self._disabled_date_keys.discard(date_key)
+            else:
+                self._disabled_date_keys.add(date_key)
+            self._update_view_model()
 
     def toggle_filter_for_month(self, year: int, month: int):
         if not self._current_hierarchy: return
@@ -220,6 +400,63 @@ class CalendarPresenter(QObject):
     def get_disabled_nodes(self) -> Set[TreeNode]:
         return self._current_disabled_nodes.copy()
 
+    @staticmethod
+    def _qdate_to_key(value: QDate) -> str:
+        return value.toString("yyyy-MM-dd")
+
+    @staticmethod
+    def _date_key_to_pydate(date_key: str):
+        try:
+            return datetime.strptime(date_key, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    def _build_conflict_payload(
+        self, date_key: str, current_original: str, override: Dict[str, str]
+    ) -> Dict[str, Any]:
+        saved_original = str(override.get("original_text", ""))
+        saved_edited = str(override.get("edited_text", ""))
+        diff_original = ""
+        diff_edited = ""
+        if self._chat_memory_service:
+            diff_original = self._chat_memory_service.build_diff(
+                saved_original, current_original, "saved_original", "current_original"
+            )
+            diff_edited = self._chat_memory_service.build_diff(
+                saved_edited, current_original, "saved_edited", "current_original"
+            )
+        return {
+            "date_key": date_key,
+            "saved_original": saved_original,
+            "saved_edited": saved_edited,
+            "current_original": current_original,
+            "diff_original": diff_original,
+            "diff_edited": diff_edited,
+        }
+
+    def _get_export_text_for_date(self, date: QDate) -> str:
+        if not self._raw_messages:
+            return tr("dialog.calendar.no_messages")
+        if not self._config:
+            return self._format_messages_for_date(date, html_mode=False)
+
+        data = {
+            "name": "Chat",
+            "type": self._config.get("profile", "group"),
+            "messages": self._raw_messages,
+        }
+        segments, _ = _build_plain_text_segments(
+            data=data,
+            config=self._config,
+            html_mode=False,
+            disabled_nodes=None,
+        )
+        date_key = self._qdate_to_key(date)
+        parts = [part for seg_date, part in segments if seg_date == date_key]
+        if not parts:
+            return tr("dialog.calendar.no_messages")
+        return "".join(parts).strip()
+
     def get_current_view_model(self) -> CalendarViewModel:
         return self._view_model
 
@@ -249,11 +486,22 @@ class CalendarPresenter(QObject):
 
             is_in_month = current_date.month() == month
 
-            message_count = self._calendar_service.get_message_count_for_date(current_date, self._current_hierarchy)
+            message_count = self._calendar_service.get_message_count_for_date(
+                current_date.toPyDate(),
+                self._current_hierarchy,
+            )
 
             is_available = message_count > 0
 
-            is_disabled = self._calendar_service.is_date_disabled_for_export(current_date, self._current_disabled_nodes, self._current_hierarchy)
+            date_key = self._qdate_to_key(current_date)
+            is_disabled = (
+                self._calendar_service.is_date_disabled_for_export(
+                    current_date.toPyDate(),
+                    self._current_disabled_nodes,
+                    self._current_hierarchy,
+                )
+                or date_key in self._disabled_date_keys
+            )
 
             year_str, month_str, day_str = str(current_date.year()), f"{current_date.month():02d}", f"{current_date.day():02d}"
             token_count = self._token_hierarchy.get(year_str, {}).get(month_str, {}).get(day_str, 0)
@@ -283,7 +531,14 @@ class CalendarPresenter(QObject):
             month_token_data = self._token_hierarchy.get(year_str, {}).get(month_str, {})
             month_token_count = sum(month_token_data.values())
 
-            message_count = sum(self._calendar_service.get_message_count_for_date(d, self._current_hierarchy) for d in self._calendar_service.get_dates_in_month(year, month_num, self._current_hierarchy))
+            message_count = sum(
+                self._calendar_service.get_message_count_for_date(d, self._current_hierarchy)
+                for d in self._calendar_service.get_dates_in_month(
+                    year,
+                    month_num,
+                    self._current_hierarchy,
+                )
+            )
             display_value = f"{int(month_token_count)}" if month_token_count > 0 else f"{message_count}"
 
             is_disabled = False
@@ -309,7 +564,11 @@ class CalendarPresenter(QObject):
             year_token_data = self._token_hierarchy.get(year_str, {})
             year_token_count = sum(sum(month.values()) for month in year_token_data.values())
 
-            year_msg_count = sum(self._calendar_service.get_message_count_for_date(d, self._current_hierarchy) for d in self._current_hierarchy.messages_by_date if d.year() == year)
+            year_msg_count = sum(
+                self._calendar_service.get_message_count_for_date(d, self._current_hierarchy)
+                for d in self._current_hierarchy.messages_by_date
+                if d.year == year
+            )
             display_value = f"{int(year_token_count)}" if year_token_count > 0 else f"{year_msg_count}"
 
             is_disabled = False
@@ -324,7 +583,7 @@ class CalendarPresenter(QObject):
                 is_available=True, is_disabled=is_disabled,
             ))
 
-        self._view_model.navigation_title = tr("Years")
+        self._view_model.navigation_title = tr("calendar.years")
 
     def _update_navigation_state(self):
         if not self._current_hierarchy:
@@ -333,20 +592,38 @@ class CalendarPresenter(QObject):
 
         current_date = QDate(self._view_model.current_year, self._view_model.current_month, 1)
         if self._view_model.view_mode == "days":
-            self._view_model.can_go_previous = self._calendar_service.find_adjacent_month(current_date, -1, self._current_hierarchy) is not None
-            self._view_model.can_go_next = self._calendar_service.find_adjacent_month(current_date, 1, self._current_hierarchy) is not None
+            self._view_model.can_go_previous = self._calendar_service.find_adjacent_month(
+                current_date.toPyDate(),
+                -1,
+                self._current_hierarchy,
+            ) is not None
+            self._view_model.can_go_next = self._calendar_service.find_adjacent_month(
+                current_date.toPyDate(),
+                1,
+                self._current_hierarchy,
+            ) is not None
         elif self._view_model.view_mode == "months":
-            self._view_model.can_go_previous = self._calendar_service.find_adjacent_year(current_date, -1, self._current_hierarchy) is not None
-            self._view_model.can_go_next = self._calendar_service.find_adjacent_year(current_date, 1, self._current_hierarchy) is not None
+            self._view_model.can_go_previous = self._calendar_service.find_adjacent_year(
+                current_date.toPyDate(),
+                -1,
+                self._current_hierarchy,
+            ) is not None
+            self._view_model.can_go_next = self._calendar_service.find_adjacent_year(
+                current_date.toPyDate(),
+                1,
+                self._current_hierarchy,
+            ) is not None
         else:
             self._view_model.can_go_previous = self._view_model.can_go_next = False
 
     def _update_statistics(self):
-        if not self._current_hierarchy: return
+        if not self._current_hierarchy:
+            return
 
         total_dates = len(self._current_hierarchy.messages_by_date)
         disabled_dates = self._calendar_service.get_filtered_dates(self._current_disabled_nodes, self._current_hierarchy)
+        total_disabled = len(disabled_dates) + len(self._disabled_date_keys)
 
         self._view_model.total_available_dates = total_dates
-        self._view_model.total_disabled_dates = len(disabled_dates)
-        self._view_model.selected_dates_count = total_dates - len(disabled_dates)
+        self._view_model.total_disabled_dates = total_disabled
+        self._view_model.selected_dates_count = max(0, total_dates - len(disabled_dates))

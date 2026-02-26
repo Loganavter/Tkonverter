@@ -1,8 +1,4 @@
-"""
-Service for sunburst chart calculations.
 
-Responsible for mathematical calculations, geometry and positioning.
-"""
 
 import math
 from dataclasses import dataclass
@@ -10,11 +6,10 @@ from typing import List, Optional, Set, Tuple
 from datetime import datetime
 
 from core.analysis.tree_analyzer import TreeNode
-from resources.translations import tr
+from src.resources.translations import tr
 
 @dataclass
 class SunburstSegment:
-    """Sunburst chart segment."""
 
     inner_radius: float
     outer_radius: float
@@ -26,7 +21,6 @@ class SunburstSegment:
     level: int
 
 class ChartCalculationService:
-    """Service for sunburst chart calculations."""
 
     def __init__(self):
 
@@ -59,6 +53,7 @@ class ChartCalculationService:
         Returns:
             List of segments for rendering
         """
+
         if not root_node or not root_node.children:
             return []
 
@@ -82,17 +77,16 @@ class ChartCalculationService:
         return segments
 
     def _get_translated_node_name(self, node: TreeNode) -> str:
-        """Returns translated node name for display."""
         if not node:
             return ""
 
         name = node.name
 
-        if tr(" others") in name:
+        if tr("analysis.others_suffix") in name:
             return name
 
-        if name == "Total":
-            return tr("Total")
+        if name == "Total" or name == tr("analysis.total"):
+            return tr("analysis.total")
 
         if getattr(node, "date_level", None) == "month" and name.isdigit():
             try:
@@ -135,6 +129,7 @@ class ChartCalculationService:
         max_radius: float,
     ):
         """Recursively calculates segments for level."""
+
         if level >= self.MAX_DEPTH:
             return
 
@@ -151,6 +146,7 @@ class ChartCalculationService:
 
         current_angle = start_angle
         angle_range = end_angle - start_angle
+        segments_created = 0
 
         for node in nodes:
             if node in disabled_nodes:
@@ -172,6 +168,7 @@ class ChartCalculationService:
                 level=level,
             )
             segments.append(segment)
+            segments_created += 1
 
             children_to_process = []
             if node.children:
@@ -193,7 +190,6 @@ class ChartCalculationService:
             current_angle = segment_end_angle
 
     def _calculate_color(self, node: TreeNode, level: int) -> str:
-        """Calculates segment color."""
 
         if level == 0:
             saturation = self.YEAR_SATURATION
@@ -208,17 +204,16 @@ class ChartCalculationService:
         name_hash = hash(node.name) % 360
         hue = name_hash / 360.0
 
-        return self._hsv_to_hex(hue, saturation, brightness)
+        color = self._hsv_to_hex(hue, saturation, brightness)
+        return color
 
     def _hsv_to_hex(self, h: float, s: float, v: float) -> str:
-        """Converts HSV to HEX."""
         import colorsys
 
         r, g, b = colorsys.hsv_to_rgb(h, s, v)
         return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
     def calculate_text_position(self, segment: SunburstSegment) -> Tuple[float, float]:
-        """Calculates text position for segment."""
 
         mid_radius = (segment.inner_radius + segment.outer_radius) / 2
 

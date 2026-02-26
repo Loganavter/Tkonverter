@@ -1,9 +1,4 @@
-"""
-Domain models for TKonverter.
 
-These models represent core business entities and do not depend on PyQt or other frameworks.
-They contain only data and simple validation logic.
-"""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -11,24 +6,20 @@ from typing import Any, Dict, List, Optional, Union
 
 @dataclass
 class TodoListItem:
-    """An item in a to-do list."""
     text: Union[str, List[Dict[str, Any]]]
     id: int
 
 @dataclass
 class TodoList:
-    """A to-do list in a message."""
     title: Union[str, List[Dict[str, Any]]]
     items: List[TodoListItem] = field(default_factory=list)
 
 @dataclass
 class PaidMedia:
-    """Information about paid media."""
     paid_stars_amount: int
 
 @dataclass
 class GiveawayInfo:
-    """Giveaway start information."""
     quantity: int
     months: int
     until_date: datetime
@@ -38,7 +29,6 @@ class GiveawayInfo:
 
 @dataclass
 class GiveawayResultsInfo:
-    """Giveaway results information."""
     winners_count: int
     unclaimed_count: int
     months: int
@@ -46,7 +36,6 @@ class GiveawayResultsInfo:
 
 @dataclass
 class User:
-    """Chat user."""
 
     id: str
     name: str
@@ -59,7 +48,6 @@ class User:
 
 @dataclass
 class Reaction:
-    """Message reaction."""
 
     emoji: str
     count: int
@@ -71,7 +59,6 @@ class Reaction:
 
 @dataclass
 class MediaInfo:
-    """Media content information."""
 
     media_type: Optional[str] = None
     file_name: Optional[str] = None
@@ -83,7 +70,6 @@ class MediaInfo:
 
 @dataclass
 class Message:
-    """Chat message."""
 
     id: int
     author: User
@@ -108,22 +94,18 @@ class Message:
 
     @property
     def is_edited(self) -> bool:
-        """Checks if message was edited."""
         return self.edited is not None
 
     @property
     def has_media(self) -> bool:
-        """Checks if message contains media."""
         return self.media is not None
 
     @property
     def has_reactions(self) -> bool:
-        """Checks if message has reactions."""
         return len(self.reactions) > 0
 
 @dataclass
 class ServiceMessage:
-    """Service message (chat action)."""
 
     id: int
     date: datetime
@@ -133,6 +115,7 @@ class ServiceMessage:
     members: List[str] = field(default_factory=list)
     period_seconds: Optional[int] = None
     media: Optional[MediaInfo] = None
+    extra_data: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
 
@@ -141,11 +124,11 @@ class ServiceMessage:
 
 @dataclass
 class Chat:
-    """Chat (group, personal correspondence, channel)."""
 
     name: str
     type: str
     messages: List[Union[Message, ServiceMessage]]
+    chat_id: Optional[int] = None
 
     def __post_init__(self):
         if not self.name:
@@ -155,21 +138,17 @@ class Chat:
 
     @property
     def message_count(self) -> int:
-        """Returns count of regular messages (without service ones)."""
         return sum(1 for msg in self.messages if isinstance(msg, Message))
 
     @property
     def service_message_count(self) -> int:
-        """Returns count of service messages."""
         return sum(1 for msg in self.messages if isinstance(msg, ServiceMessage))
 
     @property
     def total_message_count(self) -> int:
-        """Returns total message count."""
         return len(self.messages)
 
     def get_users(self) -> List[User]:
-        """Returns list of all users who participated in chat."""
         users = {}
         for msg in self.messages:
             if isinstance(msg, Message):
@@ -177,7 +156,6 @@ class Chat:
         return list(users.values())
 
     def get_messages_by_user(self, user_id: str) -> List[Message]:
-        """Returns all messages from specific user."""
         return [
             msg
             for msg in self.messages
@@ -185,7 +163,6 @@ class Chat:
         ]
 
     def get_date_range(self) -> tuple[datetime, datetime]:
-        """Returns chat time range (first and last message)."""
         if not self.messages:
             raise ValueError("Chat contains no messages")
 
@@ -194,14 +171,12 @@ class Chat:
 
 @dataclass
 class AnalysisResult:
-    """Chat analysis result."""
 
     total_count: int
     unit: str
     date_hierarchy: Dict[str, Dict[str, Dict[str, float]]]
     total_characters: Optional[int] = None
     average_message_length: Optional[float] = None
-    most_active_user: Optional[User] = None
     created_at: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):

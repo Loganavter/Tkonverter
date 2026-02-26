@@ -21,7 +21,7 @@ QLabel#StyledGroupTitle {
 /* Styles for group border (specific to tkonverter) */
 QFrame#StyledGroupFrame {
     border: 1px solid @dialog.border;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 /* --- Styles for dialogs (Settings, Help, Export) --- */
@@ -43,7 +43,7 @@ QDialog QComboBox {
     background-color: @dialog.input.background;
     color: @dialog.text;
     border: 1px solid @dialog.border;
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 4px;
 }
 
@@ -58,7 +58,7 @@ QDialog QPushButton {
     background-color: @dialog.button.background;
     color: @dialog.text;
     border: 1px solid @dialog.border;
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 5px 15px;
 }
 
@@ -71,7 +71,7 @@ QDialog QPushButton:hover {
 QWidget[class="icon-button"] {
     background-color: @button.default.background;
     border: 1px solid @button.default.border;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 QWidget[class="icon-button"]:hover,
@@ -87,9 +87,9 @@ QWidget[class="icon-button"][state="pressed"] {
 /* --- Styles for CustomButton --- */
 /* Default style */
 QWidget[class="custom-button"] {
-    background-color: @button.default.background;
-    border: 1px solid @button.default.border;
-    border-radius: 6px;
+    background-color: @button.dialog.default.background;
+    border: 1px solid @button.dialog.default.border;
+    border-radius: 8px;
     color: @dialog.text;
 }
 QWidget[class="custom-button"] QLabel {
@@ -98,11 +98,11 @@ QWidget[class="custom-button"] QLabel {
 }
 QWidget[class="custom-button"]:hover,
 QWidget[class="custom-button"][state="hover"] {
-    background-color: @button.default.background.hover;
+    background-color: @button.dialog.default.background.hover;
 }
 QWidget[class="custom-button"]:pressed,
 QWidget[class="custom-button"][state="pressed"] {
-    background-color: @button.default.background.pressed;
+    background-color: @button.dialog.default.background.pressed;
 }
 
 /* "Primary" style */
@@ -129,7 +129,7 @@ QLineEdit[custom-line-edit="true"] {
     background-color: @dialog.input.background;
     color: @dialog.text;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 6px 10px;
 }
 QLineEdit[custom-line-edit="true"]:focus {
@@ -139,7 +139,7 @@ QLineEdit[custom-line-edit="true"]:focus {
 /* --- NEW BLOCK: Styles for log terminal --- */
 QTextEdit#logOutput {
     border: 1px solid @dialog.border;
-    border-radius: 6px;
+    border-radius: 8px;
     background-color: @dialog.input.background;
     color: @dialog.text;
     padding: 5px;
@@ -148,7 +148,7 @@ QTextEdit#logOutput {
 /* --- Styles for preview widget --- */
 QTextEdit#previewTextEdit {
     border: 1px solid @dialog.border;
-    border-radius: 6px;
+    border-radius: 8px;
     background-color: @dialog.input.background;
     color: @dialog.text;
     padding: 5px;
@@ -195,5 +195,104 @@ QDialog#HelpDialog QListWidget::item:selected:!focus {
     border: none;
     outline: none;
     border-radius: 4px;
+}
+
+/* --- Styles for QSplitter handles --- */
+/* Horizontal splitter handles - completely invisible */
+QSplitter::handle:horizontal {
+    background-color: transparent;
+    border: none;
+    margin: 1px;
+    width: 6px;
+}
+
+/* Vertical splitter handles - completely invisible */
+QSplitter::handle:vertical {
+    background-color: transparent;
+    border: none;
+    margin: 1px;
+    height: 6px;
+}
+
+/* --- Anonymization dialog --- */
+QDialog#AnonymizationSettingsDialog QListWidget#listLinks,
+QDialog#AnonymizationSettingsDialog QListWidget#listNames {
+    outline: none;
+    background: transparent;
+}
+
+QPushButton[class="white-button"] {
+    background-color: @dialog.input.background;
+    color: @dialog.text;
+    border: 1px solid @dialog.border;
+    border-radius: 6px;
+    padding: 4px 10px;
+}
+QPushButton[class="white-button"]:hover {
+    background-color: @dialog.button.hover;
+}
+QPushButton[class="white-button"]:pressed {
+    background-color: @dialog.button.hover;
+}
+QPushButton[class="white-button"]:disabled {
+    background-color: @dialog.input.background;
+    color: @dialog.text;
+}
+
+/* --- Install dialog --- */
+QFrame#logOutputContainer {
+    border: 1px solid @dialog.border;
+    border-radius: 6px;
+    background-color: @dialog.input.background;
+}
+QFrame#logOutputContainer QTextEdit {
+    border: none;
+    background: transparent;
+}
+
+QLabel#loadedModelLabel {
+    font-style: italic;
+}
+
+/* --- Main window: token labels --- */
+QLabel#tokenCountLabel {
+    font-weight: bold;
+}
+QLabel#filteredTokenCountLabel {
+    font-weight: bold;
+    color: #888;
+}
+
+/* --- Drop zone (default state) --- */
+QLabel#dropZone {
+    border: 2px dashed #aaa;
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 14px;
+}
+
+/* --- TimeLineEdit --- */
+QWidget#TimeLineEdit QTimeEdit {
+    border: none;
+    background: transparent;
+    padding: 6px 2px;
+    font-size: 10pt;
+}
+QWidget#TimeLineEdit QTimeEdit::up-button,
+QWidget#TimeLineEdit QTimeEdit::down-button {
+    width: 0px;
+    border: none;
+}
+
+/* --- Splash screen --- */
+QLabel#splashLogoPlaceholder {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+/* --- Calendar dialog --- */
+QLabel#calendarDateLabel {
+    font-weight: bold;
+    padding-bottom: 5px;
 }
 

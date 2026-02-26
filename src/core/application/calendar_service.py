@@ -1,39 +1,30 @@
-"""
-Service for working with calendar and date filtering.
-"""
 
-import logging
+
 from bisect import bisect_left
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from PyQt6.QtCore import QDate
-
-from core.analysis.tree_analyzer import TreeNode
-
-logger = logging.getLogger(__name__)
+from src.core.analysis.tree_analyzer import TreeNode
 
 @dataclass
 class DateHierarchy:
-    """Date hierarchy for calendar."""
-    messages_by_date: Dict[QDate, List[Dict[str, Any]]] = field(default_factory=lambda: defaultdict(list))
+    messages_by_date: Dict[date, List[Dict[str, Any]]] = field(default_factory=lambda: defaultdict(list))
     months_with_messages: Set[Tuple[int, int]] = field(default_factory=set)
     years_with_messages: Set[int] = field(default_factory=set)
     sorted_months: List[Tuple[int, int]] = field(default_factory=list)
     sorted_years: List[int] = field(default_factory=list)
-    date_to_node_map: Dict[QDate, TreeNode] = field(default_factory=dict)
+    date_to_node_map: Dict[date, TreeNode] = field(default_factory=dict)
     month_to_node_map: Dict[Tuple[int, int], TreeNode] = field(default_factory=dict)
     year_to_node_map: Dict[int, TreeNode] = field(default_factory=dict)
 
-    def get_date_range(self) -> Tuple[Optional[QDate], Optional[QDate]]:
+    def get_date_range(self) -> Tuple[Optional[date], Optional[date]]:
         if not self.messages_by_date: return None, None
         dates = list(self.messages_by_date.keys())
         return min(dates), max(dates)
 
 class CalendarService:
-    """Service for working with calendar."""
     def __init__(self):
         self._current_hierarchy: Optional[DateHierarchy] = None
 
@@ -58,8 +49,8 @@ class CalendarService:
             if msg.get("type") in ("message", "service") and "date" in msg:
                 try:
                     dt = datetime.fromisoformat(msg["date"])
-                    qdate = QDate(dt.year, dt.month, dt.day)
-                    hierarchy.messages_by_date[qdate].append(msg)
+                    day_date = date(dt.year, dt.month, dt.day)
+                    hierarchy.messages_by_date[day_date].append(msg)
                     hierarchy.months_with_messages.add((dt.year, dt.month))
                     hierarchy.years_with_messages.add(dt.year)
                 except (ValueError, KeyError):
@@ -68,10 +59,6 @@ class CalendarService:
         hierarchy.sorted_years = sorted(list(hierarchy.years_with_messages))
 
     def _build_node_lookup_maps(self, root_node: TreeNode, hierarchy: DateHierarchy):
-        """
-        Builds maps for fast node lookup by dates.
-        Expects numeric month names for proper mapping.
-        """
         if not root_node: return
 
         for year_node in root_node.children:
@@ -87,40 +74,35 @@ class CalendarService:
                         for day_node in month_node.children:
                             if day_node.name.isdigit():
                                 day_val = int(day_node.name)
-                                date_key = QDate(year_val, month_val, day_val)
+                                date_key = date(year_val, month_val, day_val)
                                 hierarchy.date_to_node_map[date_key] = day_node
 
-    def get_message_count_for_date(self, date: QDate, hierarchy: DateHierarchy) -> int:
-        """Returns message count for specified date."""
-        return len(hierarchy.messages_by_date.get(date, []))
+    def get_message_count_for_date(self, date_value: date, hierarchy: DateHierarchy) -> int:
+        return len(hierarchy.messages_by_date.get(date_value, []))
 
     def has_messages_in_month(self, year: int, month: int, hierarchy: DateHierarchy) -> bool:
-        """Checks if there are messages in specified month."""
         return (year, month) in hierarchy.months_with_messages
 
-    def is_date_disabled_for_export(self, date: QDate, disabled_nodes: Set[TreeNode], hierarchy: DateHierarchy) -> bool:
-        """Checks if date is disabled for export."""
-        node = hierarchy.date_to_node_map.get(date)
+    def is_date_disabled_for_export(self, date_value: date, disabled_nodes: Set[TreeNode], hierarchy: DateHierarchy) -> bool:
+        node = hierarchy.date_to_node_map.get(date_value)
         return node is not None and node in disabled_nodes
 
-    def get_dates_in_month(self, year: int, month: int, hierarchy: DateHierarchy) -> List[QDate]:
-        """Returns all dates with messages in specified month."""
-        return [d for d in hierarchy.messages_by_date if d.year() == year and d.month() == month]
+    def get_dates_in_month(self, year: int, month: int, hierarchy: DateHierarchy) -> List[date]:
+        return [d for d in hierarchy.messages_by_date if d.year == year and d.month == month]
 
-    def get_filtered_dates(self, disabled_nodes: Set[TreeNode], hierarchy: DateHierarchy) -> Set[QDate]:
-        """Returns set of dates that are disabled."""
+    def get_filtered_dates(self, disabled_nodes: Set[TreeNode], hierarchy: DateHierarchy) -> Set[date]:
         return {d for d, node in hierarchy.date_to_node_map.items() if node in disabled_nodes}
 
     def find_adjacent_month(
         self,
-        current_date: QDate,
+        current_date: date,
         direction: int,
         hierarchy: DateHierarchy,
-    ) -> Optional[QDate]:
+    ) -> Optional[date]:
         """Finds adjacent month with messages."""
         if not hierarchy.sorted_months: return None
 
-        current_month_tuple = (current_date.year(), current_date.month())
+        current_month_tuple = (current_date.year, current_date.month)
         try:
             current_index = hierarchy.sorted_months.index(current_month_tuple)
         except ValueError:
@@ -130,14 +112,13 @@ class CalendarService:
         new_index = current_index + direction
         if 0 <= new_index < len(hierarchy.sorted_months):
             year, month = hierarchy.sorted_months[new_index]
-            return QDate(year, month, 1)
+            return date(year, month, 1)
         return None
 
-    def find_adjacent_year(self, current_date: QDate, direction: int, hierarchy: DateHierarchy) -> Optional[QDate]:
-        """Finds adjacent year with messages."""
+    def find_adjacent_year(self, current_date: date, direction: int, hierarchy: DateHierarchy) -> Optional[date]:
         if not hierarchy.sorted_years: return None
 
-        current_year = current_date.year()
+        current_year = current_date.year
         try:
             current_index = hierarchy.sorted_years.index(current_year)
         except ValueError:
@@ -147,5 +128,5 @@ class CalendarService:
         new_index = current_index + direction
         if 0 <= new_index < len(hierarchy.sorted_years):
             year = hierarchy.sorted_years[new_index]
-            return QDate(year, 1, 1)
+            return date(year, 1, 1)
         return None

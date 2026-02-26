@@ -1,17 +1,16 @@
 
 
-import logging
-from core.conversion.context import ConversionContext
-from core.conversion.formatters.media.game import format_game
-from core.conversion.formatters.media.giveaway import (
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.formatters.media.game import format_game
+from src.core.conversion.formatters.media.giveaway import (
     format_giveaway_start,
     format_giveaway_results,
 )
-from core.conversion.formatters.media.invoice import format_invoice
-from core.conversion.formatters.media.polls import format_poll
-from core.conversion.formatters.media.paid_content import format_paid_media
-from core.conversion.formatters.media.todo import format_todo_list
-from core.conversion.formatters.media.simple_media import (
+from src.core.conversion.formatters.media.invoice import format_invoice
+from src.core.conversion.formatters.media.polls import format_poll
+from src.core.conversion.formatters.media.paid_content import format_paid_media
+from src.core.conversion.formatters.media.todo import format_todo_list
+from src.core.conversion.formatters.media.simple_media import (
     format_contact,
     format_dice,
     format_file,
@@ -20,12 +19,9 @@ from core.conversion.formatters.media.simple_media import (
     format_place,
     format_venue,
 )
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.resources.translations import tr
 
 def _is_file_included(msg: dict) -> bool:
-    """Checks if the media file was actually exported."""
 
     not_included_str = "(File not included. Change data exporting settings to download.)"
 
@@ -54,7 +50,7 @@ def format_media(msg: dict, context: ConversionContext) -> str:
     if contact_info := msg.get("contact_information"):
         return format_contact(contact_info, context)
 
-    if msg.get("place_name") and msg.get("address") and msg.get("location_information"):
+    if msg.get("place_name") and msg.get("address"):
         return format_place(msg, context)
     if venue_info := msg.get("venue"):
         return format_venue(venue_info, context)

@@ -1,1193 +1,131 @@
-_current_language = "ru"
+import json
+import logging
+import os
+from collections.abc import Mapping
+from typing import Any
 
-en_translations = {
-    "Profile": "Profile",
-    "Group Chat": "Group Chat",
-    "Posts and Comments": "Posts and Comments",
-    "Personal Chat": "Personal Chat",
-    "Names for Personal Chat": "Names for Personal Chat",
-    "Your name (in chat):": "Your name (in chat):",
-    "Partner's name:": "Partner's name:",
-    "Options": "Options",
-    "Show message time": "Show message time",
-    "Show reactions": "Show reactions",
-    "Show reaction authors": "Show reaction authors",
-    "Optimization": "Optimization",
-    "Streak break time:": "Streak break time:",
-    "Show Markdown": "Show Markdown",
-    "Show links": "Show links",
-    "Show technical information": "Show technical information",
-    "Show service notifications": "Show service notifications",
-    "Preview": "Preview",
-    "Terminal": "Terminal",
-    "Drag and drop result.json file here": "Drag and drop result.json file here",
-    "Settings": "Settings",
-    "Save to file...": "Save to file",
-    "Tkonverter": "Tkonverter",
-    "Ready to work": "Ready to work",
-    "Loading file...": "Loading file...",
-    "Updating preview...": "Updating preview...",
-    "File loaded: {filename}": "File loaded: {filename}",
-    "Loading error.": "Loading error.",
-    "Please load a JSON file first.": "Please load a JSON file first.",
-    "Saving file...": "Saving file...",
-    "File saved: {path}": "File saved: {path}",
-    "Error saving file: {error}": "Error saving file: {error}",
-    "Chat name: {name}": "Chat name: {name}",
-    "Preview: Group example": "Example: Group Chat",
-    "Preview: Personal example": "Example: Personal Chat",
-    "Preview: Posts example": "Example: Posts and Comments",
-    "Preview: Example Group": "Example Group",
-    "Preview: Channel example": "Example: Channel",
-    "Preview: Example Channel": "Example Channel",
-    "Preview: Alaisa": "Alaisa",
-    "Preview: Alice": "Alice",
-    "Preview: Bob": "Bob",
-    "Preview: Alexander": "Alexander",
-    "Preview: Misha": "Misha",
-    "Preview: Main Editor": "Main Editor",
-    "Preview: Hello everyone!": "Hello everyone!",
-    "Preview: One moment": "One moment",
-    "Preview: Thanks": "Thanks",
-    "Preview: Almost midnight...": "Almost midnight...",
-    "Preview: Happy New Year!": "Happy New Year!",
-    "Preview: New Telegram Update": "New important update in Telegram that everyone has been waiting for",
-    "Preview: Update description": "Today a new update was released, now Telegram has a built-in TON wallet.",
-    "Preview: Why do we need this?": "Why do we need this?",
-    "Preview: If you don't need it...": "If 'you don't need it', it doesn't mean that **everyone** doesn't need it!",
-    "Preview: This is a second message from me.": "This is a second message from me.",
-    "Personal correspondence": "Personal correspondence",
-    "Channel": "Channel",
-    "Group chat": "Group chat",
-    "Me": "Me",
-    "Partner": "Partner",
-    "{actor} created group «{title}»": "{actor} created group «{title}»",
-    " and invited {members}": " and invited {members}",
-    "{actor} invited {members}": "{actor} invited {members}",
-    "{actor} left the group": "{actor} left the group",
-    "{actor} removed {member}": "{actor} removed {member}",
-    "Outgoing call": "Outgoing call",
-    "Incoming call": "Incoming call",
-    ", duration: {duration}": ", duration: {duration}",
-    " (missed)": " (missed)",
-    " (declined)": " (declined)",
-    "{actor} started a video chat": "{actor} started a video chat",
-    "{actor} joined group by link from {inviter}": "{actor} joined group by link from {inviter}",
-    "{actor} joined group by link": "{actor} joined group by link",
-    " and {remaining_count} more": " and {remaining_count} more",
-    "[SPOILER]": "[SPOILER]",
-    "[Poll]": "[Poll]",
-    "Signature: {signature}": "Signature: {signature}",
-    " (from: {authors})": " (from: {authors})",
-    "Theme:": "Theme:",
-    "Auto": "Auto",
-    "Light": "Light",
-    "Dark": "Dark",
-    "UI Font": "UI Font",
-    "Built-in font": "Built-in font",
-    "System default": "System default",
-    "Custom": "Custom",
-    "Select font...": "Select font...",
-    "Truncation length": "Truncation length",
-    "Nicknames:": "Nicknames:",
-    "Quotes in replies:": "Quotes in replies:",
-    "Auto-detect profile": "Auto-detect profile",
-    "Automatic recalculation": "Automatic recalculation",
-    "OK": "OK",
-    "Language:": "Language:",
-    "English": "English",
-    "Russian": "Russian",
-    "Export Chat": "Export Chat",
-    "Folder to save:": "Folder to save:",
-    "Browse...": "Browse...",
-    "Error": "Error",
-    "No Data": "No Data",
-    "Token Analysis by Date": "Token Analysis by Date",
-    "Analyzing...": "Analyzing...",
-    "Rendering chart...": "Rendering chart...",
-    "No messages on this date.": "No messages on this date.",
-    "Choose folder": "Choose folder",
-    "From Favorites": "From Favorites",
-    "Please calculate total tokens first by clicking 'Recalculate'.": "Please calculate total tokens first by clicking 'Recalculate'.",
-    "Unknown Chat": "Unknown Chat",
-    "User": "User",
-    "System": "System",
-    "disabled": "disabled",
-    "24 hours": "24 hours",
-    "7 days": "7 days",
-    "1 month": "1 month",
-    "{days} d.": "{days} d.",
-    "{hours} h.": "{hours} h.",
-    "{minutes} min.": "{minutes} min.",
-    "{seconds} sec.": "{seconds} sec.",
-    "unknown source": "unknown source",
-    "file": "file",
-    "Analyzing...": "Analyzing...",
-    "Token Count": "Token Count",
-    "chat_history": "chat_history",
-    "weekday_mon": "Mon",
-    "weekday_tue": "Tue",
-    "weekday_wed": "Wed",
-    "weekday_thu": "Thu",
-    "weekday_fri": "Fri",
-    "weekday_sat": "Sat",
-    "weekday_sun": "Sun",
-    "month_gen_1": "January",
-    "month_gen_2": "February",
-    "month_gen_3": "March",
-    "month_gen_4": "April",
-    "month_gen_5": "May",
-    "month_gen_6": "June",
-    "month_gen_7": "July",
-    "month_gen_8": "August",
-    "month_gen_9": "September",
-    "month_gen_10": "October",
-    "month_gen_11": "November",
-    "month_gen_12": "December",
-    "month_1": "January",
-    "month_2": "February",
-    "month_3": "March",
-    "month_4": "April",
-    "month_5": "May",
-    "month_6": "June",
-    "month_7": "July",
-    "month_8": "August",
-    "month_9": "September",
-    "month_10": "October",
-    "month_11": "November",
-    "month_12": "December",
-    "Use as default folder": "Use as default folder",
-    "To Favorites": "To Favorites",
-    "From Favorites": "From Favorites",
-    "File name (without extension):": "File name (without extension):",
-    "Save": "Save",
-    "Choose folder": "Choose folder",
-    "Cancel": "Cancel",
-    "Participants": "Participants",
-    "Reaction notation": "Reaction notation",
-    "from": "from",
-    "Unknown": "Unknown",
-    "Service message from": "Service message from",
-    " (edited)": " (edited)",
-    "[Buttons under message]": "[Buttons under message]",
-    "Row": "Row",
-    "via bot": "via bot",
-    "forwarded from": "forwarded from",
-    "[Mini-game]": "[Mini-game]",
-    "[Empty message]": "[Empty message]",
-    "[Audio]": "[Audio]",
-    "[Video]": "[Video]",
-    "[Voice message]": "[Voice message]",
-    "[Video message]": "[Video message]",
-    "[Sticker]": "[Sticker]",
-    "[Emoji]": "[Emoji]",
-    "Custom": "Custom",
-    "Emoji": "Emoji",
-    "[Animation]": "[Animation]",
-    "[File]": "[File]",
-    "Signature": "Signature",
-    "file not found": "file not found",
-    "[Photo]": "[Photo]",
-    "[Photo ({details})]": "[Photo ({details})]",
-    "Unknown performer": "Unknown performer",
-    "[Audio: {performer} - {title} ({duration})]": "[Audio: {performer} - {title} ({duration})]",
-    "[Video ({details})]": "[Video ({details})]",
-    "[Voice message ({duration})]": "[Voice message ({duration})]",
-    "[Video message ({duration})]": "[Video message ({duration})]",
-    "[Sticker {emoji}]": "[Sticker {emoji}]",
-    "[Animation ({details})]": "[Animation ({details})]",
-    "[File: {filename}]": "[File: {filename}]",
-    "phone not specified": "phone not specified",
-    "[Contact: {name}, {phone}]": "[Contact: {name}, {phone}]",
-    "[Geoposition]": "[Geoposition]",
-    "[Geoposition: {lat:.6f}, {lon:.6f}]": "[Geoposition: {lat:.6f}, {lon:.6f}]", "Address not specified": "Address not specified",
-    "[Place: {place}, {address} (Coordinates: {lat:.6f}, {lon:.6f})]": "[Place: {place}, {address} (Coordinates: {lat:.6f}, {lon:.6f})]",
-    "[Place: {place}, {address}]": "[Place: {place}, {address}]",
-    "No title": "No title",
-    "[Place: {title}, {address}]": "[Place: {title}, {address}]",
-    "[Dice roll: {emoji} (Result: {value})]": "[Dice roll: {emoji} (Result: {value})]",
-    "Question": "Question",
-    "No question": "No question",
-    "No text": "No text",
-    "Your choice": "Your choice",
-    "people_form1": "person",
-    "people_form2": "people",
-    "people_form5": "people",
-    "Total voted": "Total voted",
-    "Poll closed": "Poll closed",
-    "[Game]": "[Game]",
-    "Title": "Title",
-    "Description": "Description",
-    "[Payment invoice]": "[Payment invoice]",
-    "Amount": "Amount",
-    "[Media]": "[Media]",
-    "pinned message": "pinned message",
-    "Video chat ended, duration": "Video chat ended, duration",
-    "started video chat": "started video chat",
-    "duration": "duration",
-    "missed": "missed",
-    "busy": "busy",
-    "declined": "declined",
-    "created group": "created group",
-    "and invited": "and invited",
-    "joined group": "joined group",
-    "invited": "invited",
-    "joined group by link from": "joined group by link from",
-    "joined group by link": "joined group by link",
-    "gifted Telegram Premium": "gifted Telegram Premium",
-    "for": "for",
-    "months": "months",
-    "time": "time",
-    "times": "times",
-    "boosted group": "boosted group",
-    "scored": "scored",
-    "points in game": "points in game",
-    "Payment for": "Payment for",
-    "Giveaway": "Giveaway",
-    "Prize:": "Prize:",
-    "Additionally:": "Additionally:",
-    "Until:": "Until:",
-    "{quantity} Premium subscriptions for {months} {months_text}": "{quantity} Premium subscriptions for {months} {months_text}",
-    "Giveaway Results": "Giveaway Results",
-    "Winners:": "Winners:",
-    "month_form1": "month",
-    "month_form2": "months",
-    "month_form5": "months",
-    "winner_form1": "winner",
-    "winner_form2": "winners",
-    "winner_form5": "winners",
-    "unclaimed_form1": "unclaimed prize",
-    "unclaimed_form2": "unclaimed prizes",
-    "unclaimed_form5": "unclaimed prizes",
-    "time_form1": "time",
-    "time_form2": "times",
-    "time_form5": "times",
-    "sent": "sent",
-    "created channel": "created channel",
-    "changed group name to": "changed group name to",
-    "changed group photo": "changed group photo",
-    "deleted group photo": "deleted group photo",
-    "History cleared": "History cleared",
-    "converted this group to supergroup": "converted this group to supergroup",
-    "converted group": "converted group",
-    "to this supergroup": "to this supergroup",
-    "changed chat theme to": "changed chat theme to",
-    "disabled chat theme": "disabled chat theme",
-    "created topic": "created topic",
-    "changed topic name to": "changed topic name to",
-    "edited topic": "edited topic",
-    "left group": "left group",
-    "removed": "removed",
-    "took screenshot": "took screenshot",
-    "joined Telegram": "joined Telegram",
-    "set message auto-delete timer to": "set message auto-delete timer to",
-    "disabled message auto-delete timer": "disabled message auto-delete timer",
-    "scheduled video chat for": "scheduled video chat for",
-    "scheduled video chat": "scheduled video chat",
-    "Terminal": "Terminal",
-    "Analysis": "Analysis",
-    "Tokens:": "Tokens:",
-    "Recalculate": "Recalculate",
-    "Installation Manager": "Installation Manager",
-    "Help": "Help",
-    "Tokens": "Tokens",
-    "Characters": "Characters",
-    "Characters:": "Characters:",
-    "Calculate": "Calculate",
-    "{unit} calculated: {count}": "{unit} calculated: {count}",
-    "Tokens calculated: {count}": "Tokens calculated: {count}",
-    "Characters calculated: {count}": "Characters calculated: {count}",
-    "Token Analysis": "Token Analysis",
-    "Calculating...": "Calculating...",
-    "Character Count": "Character Count",
-    "Token analysis feature is under development.": "Token analysis feature is under development.",
-    "Tokens calculated: {count}": "Tokens calculated: {count}",
-    "N/A": "N/A",
-    "Token Count": "Token Count",
-    "Tokens per Participant": "Tokens per Participant",
-    "Analyzing tokens per participant...": "Analyzing tokens per participant...",
-    "Analysis failed or no data found.": "Analysis failed or no data found.",
-    "Tokenizer Error": "Tokenizer Error",
-    "Tokenizer not ready.": "Tokenizer not ready.",
-    "Tokenizer not ready. Please run total calculation first.": "Tokenizer not ready. Please run total calculation first.",
-    "Token Analysis by Date": "Token Analysis by Date",
-    "Please calculate total tokens first by clicking 'Recalculate'.": "Please calculate total tokens first by clicking 'Recalculate'.",
-    "Analyzing token distribution by date...": "Analyzing token distribution by date...",
-    "Rendering chart...": "Rendering chart...",
-    "Token Analysis": "Token Analysis",
-    "Save": "Save",
-    "Close": "Close",
-    "Save filter settings for export": "Save filter settings for export",
-    "Filter settings saved. They will be applied on the next export.": "Filter settings saved. They will be applied on the next export.",
-    "Filter settings cleared.": "Filter settings cleared.",
-    "Year": "Year",
-    "Month": "Month",
-    "Day": "Day",
-    "Others": "Others",
-    "Remaining": "Remaining",
-    "Total": "Total",
-    "Total Characters": "Total Characters",
-    "Calendar View": "Calendar View",
-    "Calendar": "Calendar",
-    "Date": "Date",
-    "No messages on this date.": "No messages on this date.",
-    "Analyzing token distribution...": "Analyzing token distribution...",
-    "Analysis complete.": "Analysis complete.",
-    "HF transformers not found": "HuggingFace 'transformers' not found. Please run 'pip install transformers sentencepiece'",
-    "HF transformers not found. Skipping.": "HuggingFace 'transformers' not found. Skipping.",
-    "Downloading tokenizer": "Downloading tokenizer model (first time)...",
-    "Initialization complete": "Initialization complete!",
-    "Error: {error}": "Error: {error}",
-    "Error opening calendar dialog": "Error opening calendar dialog",
-    "File not found": "File not found.",
-    "Error": "Error",
-    "{count} others": "{count} others",
-    "click to go up": "(click to go up)",
-    "No Data": "No Data",
-    "Model not found in cache. Skipping.": "Model not found in cache. Skipping.",
-    "Warning": "Warning",
-    "Please enter a model name": "Please enter a model name",
-    "Downloading tokenizer model '{model}'...": "Downloading tokenizer model '{model}'...",
-    "Tokenizer '{model}' loaded successfully!": "Tokenizer '{model}' loaded successfully!",
-    "Error loading tokenizer: {error}": "Error loading tokenizer: {error}",
-    "Failed to load tokenizer: {error}": "Failed to load tokenizer: {error}",
-    "Executing: {command}": "Executing: {command}",
-    "Operation completed.": "Operation completed.",
-    "Tokens: {count}": "Tokens: {count}",
-    "Characters: {count}": "Characters: {count}",
-    "System Prompt": "System Prompt",
-    "Tool Calls": "Tool Calls",
-    "Analysis complete.": "Analysis complete.",
-    "Export completed successfully.": "Export completed successfully.",
-    "Done": "Done",
-    "Building analysis tree...": "Building analysis tree...",
-    "Building analysis tree for {count} {unit}": "Building analysis tree for {count} {unit}",
-    "Failed to build analysis tree": "Failed to build analysis tree",
-    "Start time: {time}": "Start time: {time}",
-    "Created time intervals:": "Created time intervals:",
-    "Years: {count}": "Years: {count}",
-    "Months: {count}": "Months: {count}",
-    "Days: {count}": "Days: {count}",
-    "Year {year}: {count} {unit} ({percent:.1f}%)": "Year {year}: {count} {unit} ({percent:.1f}%)",
-    "Month {month} {year}: {count} {unit} ({percent:.1f}% of year)": "Month {month} {year}: {count} {unit} ({percent:.1f}% of year)",
-    "Day {day} {month} {year}: {count} {unit} ({percent:.1f}% of month)": "Day {day} {month} {year}: {count} {unit} ({percent:.1f}% of month)",
-    "Creating tree nodes...": "Creating tree nodes...",
-    "Analysis tree built successfully": "Analysis tree built successfully",
-    "Final structure: {name} ({count} years)": "Final structure: {name} ({count} years)",
-    "Execution time: {time:.3f} seconds": "Execution time: {time:.3f} seconds",
-    "End time: {time}": "End time: {time}",
-    "Worker: Starting tree construction for {count} tokens": "Worker: Starting tree construction for {count} tokens",
-    "Worker: Start time: {time}": "Worker: Start time: {time}",
-    "Worker: Creating TokenAnalyzer...": "Worker: Creating TokenAnalyzer...",
-    "Worker: Starting analysis tree construction...": "Worker: Starting analysis tree construction...",
-    "Worker: Tree built successfully": "Worker: Tree built successfully",
-    "Worker: Final structure: {name} with {count} child nodes": "Worker: Final structure: {name} with {count} child nodes",
-    "Worker: Execution time: {time:.3f} seconds": "Worker: Execution time: {time:.3f} seconds",
-    "Worker: End time: {time}": "Worker: End time: {time}",
-    "Worker: Sending analysis result...": "Worker: Sending analysis result...",
-    "Using cached analysis tree.": "Using cached analysis tree.",
-    "Message filtering: no disabled nodes, returning all messages": "Message filtering: no disabled nodes, returning all messages",
-    "Starting message filtering by {count} disabled nodes": "Starting message filtering by {count} disabled nodes",
-    "Disabled date: {date} (node: {name}, value: {value:.1f})": "Disabled date: {date} (node: {name}, value: {value:.1f})",
-    "Node '{name}' contains {count} aggregated subnodes:": "Node '{name}' contains {count} aggregated subnodes:",
-    "Child {index}: '{name}': {value:.1f} tokens": "Child {index}: '{name}': {value:.1f} tokens",
-    "Total disabled dates: {count}": "Total disabled dates: {count}",
-    "Disabled dates: {dates}": "Disabled dates: {dates}",
-    "Filtering completed: {original} → {filtered} messages (filtered: {count})": "Filtering completed: {original} → {filtered} messages (filtered: {count})",
-    "Starting conversion context creation": "Starting conversion context creation",
-    "Chat name: {name}": "Chat name: {name}",
-    "Total messages: {count}": "Total messages: {count}",
-    "Messages with ID: {count}": "Messages with ID: {count}",
-    "Profile: {profile}": "Profile: {profile}",
-    "Processing personal profile...": "Processing personal profile...",
-    "Found authors: {count}": "Found authors: {count}",
-    "Author {name} ({id}): {count} messages": "Author {name} ({id}): {count} messages",
-    "My ID: {id} ({name})": "My ID: {id} ({name})",
-    "Partner ID: {id} ({name})": "Partner ID: {id} ({name})",
-    "Processing posts profile...": "Processing posts profile...",
-    "Channel name: {name}": "Channel name: {name}",
-    "Main post ID: {id}": "Main post ID: {id}",
-    "Conversion context created successfully": "Conversion context created successfully",
-    "Starting text generation for export": "Starting text generation for export",
-    "HTML mode: {mode}": "HTML mode: {mode}",
-    "Applying filters: {yes_no}": "Applying filters: {yes_no}",
-    "Disabled nodes: {count}": "Disabled nodes: {count}",
-    "Disabled node: {name} (value: {value:.1f})": "Disabled node: {name} (value: {value:.1f})",
-    "... and {count} more nodes": "... and {count} more nodes",
-    "Title: {title} - {name}": "Title: {title} - {name}",
-    "Participants: {my_name} ({my_full}), {partner_name} ({partner_full})": "Participants: {my_name} ({my_full}), {partner_name} ({partner_full})",
-    "Total messages to process: {count}": "Total messages to process: {count}",
-    "Messages after filtering: {count}": "Messages after filtering: {count}",
-    "First date: {date}": "First date: {date}",
-    "Processing completed: {count} messages processed": "Processing completed: {count} messages processed",
-    "Output text size: {size} characters": "Output text size: {size} characters",
-    "Starting chart construction for node '{name}'": "Starting chart construction for node '{name}'",
-    "Root node has no children": "Root node has no children",
-    "Chart built successfully": "Chart built successfully",
-    "Right click on node: '{name}'": "Right click on node: '{name}'",
-    "Enabled {count} days for '{name}'": "Enabled {count} days for '{name}'",
-    "Disabled {count} days for '{name}'": "Disabled {count} days for '{name}'",
-    "Left click on node: '{name}'": "Left click on node: '{name}'",
-    "Enabled {count} days for node '{name}'.": "Enabled {count} days for node '{name}'.",
-    "Disabled {count} days for node '{name}'.": "Disabled {count} days for node '{name}'.",
-    "Node aggregation: '{name}' (Force full detail: {force})": "Node aggregation: '{name}' (Force full detail: {force})",
-    "Node '{name}' has no children or value is 0": "Node '{name}' has no children or value is 0",
-    "Maximum detail: showing all {count} children": "Maximum detail: showing all {count} children",
-    "Smart limit: share {share:.2%}, child limit: {limit} (from {min} to {max})": "Smart limit: share {share:.2%}, child limit: {limit} (from {min} to {max})",
-    "Smart limit: top level node, child limit: {limit}": "Smart limit: top level node, child limit: {limit}",
-    "Aggregation threshold: {threshold:.1f} tokens ({percent}% of {value:.1f})": "Aggregation threshold: {threshold:.1f} tokens ({percent}% of {value:.1f})",
-    "Analyzing {count} child nodes...": "Analyzing {count} child nodes...",
-    "Showing '{name}': {value:.1f} tokens (>= threshold and in top {limit})": "Showing '{name}': {value:.1f} tokens (>= threshold and in top {limit})",
-    "Hiding '{name}': {value:.1f} tokens (< threshold {threshold:.1f})": "Hiding '{name}': {value:.1f} tokens (< threshold {threshold:.1f})",
-    "Hiding '{name}': {value:.1f} tokens (outside top {limit})": "Hiding '{name}': {value:.1f} tokens (outside top {limit})",
-    "Created '{name}' node with {count} hidden nodes (total value: {value:.1f})": "Created '{name}' node with {count} hidden nodes (total value: {value:.1f})",
-    "Total showing: {count} nodes + 1 aggregated": "Total showing: {count} nodes + 1 aggregated",
-    "Showing all {count} nodes (aggregation not needed)": "Showing all {count} nodes (aggregation not needed)",
-    "Aggregated {count} subnodes": "Aggregated {count} subnodes",
-    "GEOMETRY: Constants: CENTER_HOLE_RADIUS={radius}, RING_WIDTH={width}, MAX_DEPTH={depth}": "GEOMETRY: Constants: CENTER_HOLE_RADIUS={radius}, RING_WIDTH={width}, MAX_DEPTH={depth}",
-    "--- [ Starting chart construction for node '{name}' ] ---": "--- [ Starting chart construction for node '{name}' ] ---",
-    "--- [ ✅ Chart for '{name}' built successfully ] ---": "--- [ ✅ Chart for '{name}' built successfully ] ---",
-    "AI Component Management": "AI Component Management",
-    "Status:": "Status:",
-    "Loaded and active": "Loaded and active",
-    "Not available": "Not available",
-    "Actions": "Actions",
-    "Install / Update": "Install / Update",
-    "Remove": "Remove",
-    "Load AI components on startup": "Load AI components on startup",
-    "Configuration": "Configuration",
-    "Hugging Face Model:": "Hugging Face Model:",
-    "Reset to Default": "Reset to Default",
-    "Terminal Output": "Terminal Output",
-    "Installed. Please restart the application to use.": "Installed. Please restart the application to use.",
-    "Please restart the application for the changes to take effect.": "Please restart the application for the changes to take effect.",
-    "Close": "Close",
-    "Executing: {command}": "Executing: {command}",
-    "Operation successful.": "Operation successful.",
-    "Operation failed with code: {code}": "Operation failed with code: {code}",
-    "Installed (active)": "Installed (active)",
-    "Installed (restart required)": "Installed (restart required)",
-    "Installed (model not in cache)": "Installed (model not in cache)",
-    "Not installed": "Not installed",
-    "Loaded model: {model}": "Loaded model: {model}",
-    "Remove Model from Cache": "Remove Model from Cache",
-    "Scanning cache for model...": "Scanning cache for model...",
-    "Model not found in cache.": "Model not found in cache.",
-    "Found model, preparing to delete...": "Found model, preparing to delete...",
-    "Will free: {size}": "Will free: {size}",
-    "Deleting model from cache...": "Deleting model from cache...",
-    "Model cache removed successfully.": "Model cache removed successfully.",
-    "Refusing to install packages into the system Python. Please run this application from a virtual environment (venv).": "Refusing to install packages into the system Python. Please run this application from a virtual environment (venv).",
-    "Error: Model name cannot be empty": "Error: Model name cannot be empty",
-    "Load Model": "Load Model",
-    "Install/Update transformers library": "Install/Update transformers library",
-    "This action requires restart": "This action requires restart",
-    "Removes the model specified in the configuration from the local cache to free up disk space.": "Removes the model specified in the configuration from the local cache to free up disk space.",
-    "Library Status:": "Library Status:",
-    "Loaded Model:": "Loaded Model:",
-    "Installed (model not loaded)": "Installed (model not loaded)",
-    "in cache": "in cache",
-    "Restart Required": "Restart Required",
-    "Library installation completed successfully!": "Library installation completed successfully!",
-    "Please restart the application for changes to take effect.": "Please restart the application for changes to take effect.",
-    "On": "On",
-    "Off": "Off",
-    "Tokens reset": "Tokens reset",
-    "Characters reset": "Characters reset",
+from src.shared_toolkit.utils.paths import resource_path
 
-    "gifted": "gifted",
-    "star_form1": "star",
-    "star_form2": "stars",
-    "star_form5": "stars",
-    "won_prize_from": "won a prize from {actor}: {count} ★ {stars_text}",
-    "updated_tasks_in_list": "updated tasks in the to-do list",
-    "added_tasks": "added tasks",
+logger = logging.getLogger("Tkonverter")
 
-    "Tkonverter Help": "Tkonverter Help",
-    "Help Section: Introduction": "Introduction",
-    "Help Section: File Management": "File Management",
-    "Help Section: Conversion Options": "Conversion Options",
-    "Help Section: Analysis Tools": "Analysis Tools",
-    "Help Section: AI Features": "AI Features",
-    "Help Section: Exporting": "Exporting",
-    "help_intro_html": """
-<body>
-    <h2>Welcome to Tkonverter!</h2>
-    <p>This application is designed to convert and analyze exported Telegram chats, primarily for pre-processing data for Large Language Models (LLMs).</p>
-    <p>Use the navigation on the left to learn about specific features.</p>
-</body>
-""",
-    "help_files_html": """
-<body>
-    <h2>File Management</h2>
-    <p>To begin, <b>drag and drop</b> your <code>result.json</code> file from a Telegram data export onto the main application window.</p>
-</body>
-""",
-    "help_conversion_html": """
-<body>
-    <h2>Conversion Options</h2>
-    <h3>Profiles</h3>
-    <p>The profile affects how messages are formatted. In most cases, <b>Auto-detect profile</b> (in Settings) works best.</p>
-    <ul>
-        <li><b>Group Chat:</b> Standard formatting for multi-user chats.</li>
-        <li><b>Personal Chat:</b> Formats the conversation from the perspective of "Me" and "Partner". You can set custom names for these roles.</li>
-        <li><b>Channel:</b> Simplified format suitable for channel posts.</li>
-        <li><b>Posts and Comments:</b> A special mode for channels where comments are enabled. It treats the first message as the main post and subsequent messages as replies.</li>
-    </ul>
-    <h3>Key Options</h3>
-    <ul>
-        <li><b>Show reactions:</b> Includes message reactions (e.g., 👍 2).</li>
-        <li><b>Optimization:</b> A mode for channels that groups consecutive messages from the same author to save tokens.</li>
-    </ul>
-</body>
-""",
-    "help_analysis_html": """
-<body>
-    <h2>Analysis Tools</h2>
-    <p>Before using the analysis tools, you must first load a chat and click <b>"Calculate"</b> to process the data.</p>
-    <h3>Analysis Chart (Sunburst Diagram)</h3>
-    <ul>
-        <li><b>Left-click:</b> Zoom into a segment (e.g., click a year to see its months).</li>
-        <li><b>Right-click:</b> Toggle a segment and all its children as <b>disabled</b> for export. Disabled segments will be grayed out. This allows you to exclude specific time periods from your final text file.</li>
-        <li><b>Click the center:</b> Zoom out to the parent level.</li>
-    </ul>
-    <h3>Calendar</h3>
-    <ul>
-        <li><b>Left-click a day:</b> View the messages for that specific day in the right-hand panel.</li>
-        <li><b>Left-click a month/year:</b> Zoom into that month/year.</li>
-        <li><b>Right-click a day/month/year:</b> Toggle that entire period as <b>disabled</b> for export.</li>
-        <li><b>Click the title (e.g., "August 2025"):</b> Zoom out to the parent level (e.g., to the year view).</li>
-    </ul>
-</body>
-""",
-    "help_ai_html": """
-<body>
-    <h2>AI & Tokenizer Features</h2>
-    <p>Tkonverter can calculate the exact number of tokens your chat will use with a specific AI model. This requires the <b>transformers</b> library.</p>
-    <ul>
-        <li>Click the <b>Download</b> icon to open the <b>Installation Manager</b>.</li>
-        <li>From there, you can install the necessary libraries and download tokenizer models from Hugging Face.</li>
-        <li>Once a tokenizer is loaded, the analysis will switch from counting characters to counting tokens.</li>
-    </ul>
-</body>
-""",
-    "help_export_html": """
-<body>
-    <h2>Exporting</h2>
-    <p>Click <b>"Save to file..."</b> to open the export dialog.</p>
-    <p>The final <code>.txt</code> file will respect all your selected formatting options and any date filters you have applied using the Analysis Chart or Calendar.</p>
-</body>
-""",
-}
+class TranslationManager:
+    _instance = None
 
-ru_translations = {
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._current_lang = "ru"
+            cls._instance._translations_cache: dict[str, dict[str, str]] = {}
+            cls._instance._translations: dict[str, str] = {}
+            cls._instance._missing_keys_logged: set[tuple[str, str]] = set()
+            cls._instance.load_language("ru")
+        return cls._instance
 
-    "Profile": "Профиль",
-    "Group Chat": "Групповой чат",
-    "Posts and Comments": "Посты и комментарии",
-    "Personal Chat": "Личная переписка",
-    "Names for Personal Chat": "Имена для личной переписки",
-    "Your name (in chat):": "Ваше имя (в чате):",
-    "Partner's name:": "Имя собеседника:",
-    "Options": "Опции",
-    "Show message time": "Отображать время сообщения",
-    "Show reactions": "Отображать реакции",
-    "Show reaction authors": "Имена отреагировавших",
-    "Optimization": "Оптимизация",
-    "Streak break time:": "Разрыв серии через:",
-    "Show Markdown": "Отображать Markdown",
-    "Show links": "Отображать ссылки",
-    "Show technical information": "Техническая информация",
-    "Show service notifications": "Служебные уведомления",
-    "Preview": "Предпросмотр",
-    "Terminal": "Терминал",
-    "Drag and drop result.json file here": "Перетащите сюда файл result.json",
-    "Settings": "Настройки",
-    "Save to file...": "Сохранить в файл",
-    "Tkonverter": "Tkonverter",
-    "Ready to work": "Готов к работе",
-    "Loading file...": "Загрузка файла...",
-    "Updating preview...": "Обновление примера...",
-    "File loaded: {filename}": "Файл загружен: {filename}",
-    "Loading error.": "Ошибка загрузки файла.",
-    "Please load a JSON file first.": "Сначала загрузите JSON файл.",
-    "Saving file...": "Сохранение файла...",
-    "File saved: {path}": "Файл сохранен: {path}",
-    "Error saving file: {error}": "Ошибка сохранения: {error}",
-    "Error opening calendar dialog": "Ошибка открытия календарного диалога",
-    "Chat name: {name}": "Имя чата: {name}",
+    def _flatten_translations(
+        self, data: Mapping[str, Any], prefix: str = ""
+    ) -> dict[str, str]:
+        flat: dict[str, str] = {}
+        for key, value in data.items():
+            key_str = str(key)
+            full_key = f"{prefix}.{key_str}" if prefix else key_str
+            if isinstance(value, Mapping):
+                flat.update(self._flatten_translations(value, prefix=full_key))
+            else:
+                flat[full_key] = str(value)
+        return flat
 
-    "Preview: Group example": "Пример: Групповой чат",
-    "Preview: Personal example": "Пример: Личная переписка",
-    "Preview: Posts example": "Пример: Посты и комментарии",
-    "Preview: Example Group": "Пример группы",
-    "Preview: Channel example": "Пример: Канал",
-    "Preview: Example Channel": "Пример канала",
-    "Preview: Alaisa": "Алаиса",
-    "Preview: Alice": "Алиса",
-    "Preview: Bob": "Боб",
-    "Preview: Alexander": "Александр",
-    "Preview: Misha": "Миша",
-    "Preview: Main Editor": "Главный редач",
-    "Preview: Hello everyone!": "Всем привет!",
-    "Preview: One moment": "Секунду",
-    "Preview: Thanks": "Спасибо",
-    "Preview: Almost midnight...": "Почти полночь...",
-    "Preview: Happy New Year!": "С новым годом!",
-    "Preview: New Telegram Update": "Новое важное обновление в Telegram, которого все так долго ждали",
-    "Preview: Update description": "Сегодня был выпуск нового обновления, теперь в Telegram есть встроенный кошелёк TON.",
-    "Preview: Why do we need this?": "Ну и зачем нам это?",
-    "Preview: If you don't need it...": "Если 'тебе не надо', это же не означает что **всем** не надо!",
-    "Preview: This is a second message from me.": "Это второе сообщение от меня.",
+    def _load_file_dict(self, lang_code: str) -> dict[str, str]:
+        base_path = resource_path("resources/i18n")
+        file_path = os.path.join(base_path, f"{lang_code}.json")
+        source_lang = lang_code
 
-    "Personal correspondence": "Личная переписка",
-    "Channel": "Канал",
-    "Group chat": "Групповой чат",
-    "Me": "Я",
-    "Partner": "Собеседник",
-    "{actor} created group «{title}»": "{actor} создал(а) группу «{title}»",
-    " and invited {members}": " и пригласил(а) {members}",
-    "{actor} invited {members}": "{actor} пригласил(а) {members}",
-    "{actor} left the group": "{actor} покинул(а) группу",
-    "{actor} removed {member}": "{actor} исключил(а) {member}",
-    "Outgoing call": "Исходящий звонок",
-    "Incoming call": "Входящий звонок",
-    ", duration: {duration}": ", длительность: {duration}",
-    " (missed)": " (пропущен)",
-    " (declined)": " (отклонён)",
-    "{actor} started a video chat": "{actor} начал(а) видеочат",
-    "{actor} joined group by link from {inviter}": "{actor} присоединился(лась) к группе по ссылке от {inviter}",
-    "{actor} joined group by link": "{actor} присоединился(лась) к группе по ссылке",
-    " and {remaining_count} more": " и ещё +{remaining_count}",
-    "[SPOILER]": "[СПОЙЛЕР]",
-    "[Poll]": "[Опрос]",
-    "Signature": "Подпись",
-    "Signature: {signature}": "Подпись: {signature}",
-    " (from: {authors})": " (от: {authors})",
-    "Theme:": "Тема:",
-    "Auto": "Авто",
-    "Light": "Светлая",
-    "Dark": "Тёмная",
-    "Giveaway": "Розыгрыш",
-    "Prize:": "Приз:",
-    "Additionally:": "Дополнительно:",
-    "Until:": "До:",
-    "{quantity} Premium subscriptions for {months} {months_text}": "{quantity} подписок Premium на {months} {months_text}",
-    "Giveaway Results": "Результаты розыгрыша",
-    "Winners:": "Победители:",
-    "month_form1": "месяц",
-    "month_form2": "месяца",
-    "month_form5": "месяцев",
-    "winner_form1": "победитель",
-    "winner_form2": "победителя",
-    "winner_form5": "победителей",
-    "unclaimed_form1": "невостребованный приз",
-    "unclaimed_form2": "невостребованных приза",
-    "unclaimed_form5": "невостребованных призов",
-    "boosted group": "ускорил(а) группу",
-    "time_form1": "раз",
-    "time_form2": "раза",
-    "time_form5": "раз",
-    "UI Font": "Шрифт интерфейса",
-    "Built-in font": "Встроенный шрифт",
-    "System default": "Системный по умолчанию",
-    "Custom": "Пользовательский",
-    "Select font...": "Выбрать шрифт...",
-    "Truncation length": "Длина обрезки",
-    "Nicknames:": "Никнеймы:",
-    "Quotes in replies:": "Цитаты в ответах:",
-    "Auto-detect profile": "Автоопределение профиля",
-    "Automatic recalculation": "Автоматический пересчёт",
-    "OK": "ОК",
-    "Language:": "Язык:",
-    "English": "Английский",
-    "Russian": "Русский",
-    "Export Chat": "Экспорт чата",
-    "Folder to save:": "Папка для сохранения:",
-    "Browse...": "Обзор...",
-    "Error": "Ошибка",
-    "No Data": "Нет данных",
-    "Token Analysis by Date": "Анализ токенов по датам",
-    "Analyzing...": "Анализ...",
-    "Rendering chart...": "Отрисовка диаграммы...",
-    "No messages on this date.": "Нет сообщений за эту дату.",
-    "Choose folder": "Выбрать папку",
-    "From Favorites": "Из Избранного",
-    "Please calculate total tokens first by clicking 'Recalculate'.": "Пожалуйста, сначала рассчитайте общее число токенов, нажав 'Пересчитать'.",
-    "Unknown Chat": "Неизвестный чат",
-    "User": "Неизвестен",
-    "System": "Система",
-    "disabled": "отключен",
-    "24 hours": "24 часа",
-    "7 days": "7 дней",
-    "1 month": "1 месяц",
-    "{days} d.": "{days} дн.",
-    "{hours} h.": "{hours} ч.",
-    "{minutes} min.": "{minutes} мин.",
-    "{seconds} sec.": "{seconds} сек.",
-    "unknown source": "неизвестный источник",
-    "file": "файл",
+        if not os.path.exists(file_path):
+            logger.warning(
+                f"Translation file not found: {file_path}. Falling back to EN."
+            )
+            source_lang = "en"
+            file_path = os.path.join(base_path, "en.json")
 
-    "Token Count": "Токены:",
-    "chat_history": "история_чата",
-    "weekday_mon": "Пн",
-    "weekday_tue": "Вт",
-    "weekday_wed": "Ср",
-    "weekday_thu": "Чт",
-    "weekday_fri": "Пт",
-    "weekday_sat": "Сб",
-    "weekday_sun": "Вс",
-    "month_gen_1": "Января",
-    "month_gen_2": "Февраля",
-    "month_gen_3": "Марта",
-    "month_gen_4": "Апреля",
-    "month_gen_5": "Мая",
-    "month_gen_6": "Июня",
-    "month_gen_7": "Июля",
-    "month_gen_8": "Августа",
-    "month_gen_9": "Сентября",
-    "month_gen_10": "Октября",
-    "month_gen_11": "Ноября",
-    "month_gen_12": "Декабря",
-    "month_1": "Январь",
-    "month_2": "Февраль",
-    "month_3": "Март",
-    "month_4": "Апрель",
-    "month_5": "Май",
-    "month_6": "Июнь",
-    "month_7": "Июль",
-    "month_8": "Август",
-    "month_9": "Сентябрь",
-    "month_10": "Октябрь",
-    "month_11": "Ноябрь",
-    "month_12": "Декабрь",
-    "Use as default folder": "Использовать как папку по умолчанию",
-    "To Favorites": "В Избранное",
+        if not os.path.exists(file_path):
+            logger.error(f"English translation file also not found: {file_path}")
+            return {}
 
-    "File name (without extension):": "Имя файла (без расширения):",
-    "Save": "Сохранить",
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                loaded = json.load(file)
+        except Exception as exc:
+            logger.error(
+                f"Failed to load translations from {file_path}: {exc}", exc_info=True
+            )
+            return {}
 
-    "Cancel": "Отмена",
-    "Participants": "Участники",
-    "Reaction notation": "Обозначение реакций",
-    "from": "от",
-    "Unknown": "Неизвестно",
-    "Service message from": "Служебное сообщение от",
-    " (edited)": " (отредактировано)",
-    "[Buttons under message]": "[Кнопки под сообщением]",
-    "Row": "Строка",
-    "via bot": "через бота",
-    "forwarded from": "переслано из",
-    "[Mini-game]": "[Мини-игра]",
-    "[Empty message]": "[Пустое сообщение]",
-    "file not found": "файл не найден",
-    "No title": "Без названия",
-    "Question": "Вопрос",
-    "No question": "Нет вопроса",
-    "No text": "Нет текста",
-    "Your choice": "Ваш выбор",
-    "people_form1": "человек",
-    "people_form2": "человека",
-    "people_form5": "человек",
-    "Total voted": "Всего проголосовало",
-    "Poll closed": "Опрос закрыт",
-    "Title": "Название",
-    "Description": "Описание",
-    "Amount": "Сумма",
+        if not isinstance(loaded, Mapping):
+            logger.error(f"Invalid translation format in {file_path}: expected object")
+            return {}
 
-    "phone not specified": "номер не указан",
-    "Address not specified": "Адрес не указан",
-    "duration": "длительность",
-    "time": "раз",
-    "times": "раза",
-    "sent": "отправлен",
+        flat = self._flatten_translations(loaded)
+        if source_lang != lang_code:
+            logger.info(
+                f"Loaded fallback translations for {lang_code} from {source_lang}: {len(flat)} keys"
+            )
+        return flat
 
-    "[Audio]": "[Аудио]",
-    "[Video]": "[Видео]",
-    "[Voice message]": "[Голосовое сообщение]",
-    "[Video message]": "[Видео-сообщение]",
-    "[Sticker]": "[Стикер]",
-    "[Emoji]": "[Эмодзи]",
-    "Custom": "Кастомный",
-    "Emoji": "Эмодзи",
-    "[Animation]": "[Анимация]",
-    "[File]": "[Файл]",
-    "[Photo]": "[Фото]",
-    "[Photo ({details})]": "[Фото ({details})]",
-    "Unknown performer": "Неизвестный исполнитель",
-    "[Audio: {performer} - {title} ({duration})]": "[Аудио: {performer} - {title} ({duration})]",
-    "[Video ({details})]": "[Видео ({details})]",
-    "[Voice message ({duration})]": "[Голосовое сообщение ({duration})]",
-    "[Video message ({duration})]": "[Видео-сообщение ({duration})]",
-    "[Sticker {emoji}]": "[Стикер {emoji}]",
-    "[Animation ({details})]": "[Анимация ({details})]",
-    "[File: {filename}]": "[Файл: {filename}]",
-    "[Contact: {name}, {phone}]": "[Контакт: {name}, {phone}]",
-    "[Geoposition]": "[Геопозиция]",
-    "[Geoposition: {lat:.6f}, {lon:.6f}]": "[Геопозиция: {lat:.6f}, {lon:.6f}]", "Address not specified": "Адрес не указан",
-    "[Place: {place}, {address} (Coordinates: {lat:.6f}, {lon:.6f})]": "[Место: {place}, {address} (Координаты: {lat:.6f}, {lon:.6f})]",
-    "[Place: {place}, {address}]": "[Место: {place}, {address}]",
-    "[Dice roll: {emoji} (Result: {value})]": "[Бросок кубика: {emoji} (Результат: {value})]",
-    "[Game]": "[Игра]",
-    "[Payment invoice]": "[Платежный счет]",
-    "[Media]": "[Медиа]",
+    def _ensure_language_loaded(self, lang_code: str) -> dict[str, str]:
+        if lang_code not in self._translations_cache:
+            self._translations_cache[lang_code] = self._load_file_dict(lang_code)
+        return self._translations_cache[lang_code]
 
-    "pinned message": "закрепил сообщение",
-    "Video chat ended, duration": "Видеочат завершён, длительность",
-    "started video chat": "начал(а) видеочат",
-    "missed": "пропущен",
-    "busy": "занято",
-    "declined": "отклонён",
-    "created group": "создал(а) группу",
-    "and invited": "и пригласил(а)",
-    "joined group": "присоединился(лась) к группе",
-    "invited": "пригласил(а)",
-    "joined group by link from": "присоединился(лась) к группе по ссылке от",
-    "joined group by link": "присоединился(лась) к группе по ссылке",
-    "gifted Telegram Premium": "подарил(а) Telegram Premium",
-    "for": "на",
-    "months": "месяцев",
-    "boosted group": "ускорил(а) группу",
-    "scored": "набрал(а)",
-    "points in game": "очков в игре",
-    "Payment for": "Платёж на",
-    "created channel": "создал(а) канал",
-    "changed group name to": "изменил(а) название группы на",
-    "changed chat wallpaper": "изменил(а) обои чата",
-    "changed group photo": "сменил(а) фото группы",
-    "deleted group photo": "удалил(а) фото группы",
-    "History cleared": "История очищена",
-    "converted this group to supergroup": "преобразовал(а) эту группу в супергруппу",
-    "converted group": "преобразовал(а) группу",
-    "to this supergroup": "в эту супергруппу",
-    "changed chat theme to": "изменил(а) тему чата на",
-    "disabled chat theme": "отключил(а) тему чата",
-    "created topic": "создал(а) тему",
-    "changed topic name to": "изменил(а) название темы на",
-    "edited topic": "отредактировал(а) тему",
-    "left group": "покинул(а) группу",
-    "removed": "исключил(а)",
-    "took screenshot": "сделал(а) скриншот",
-    "joined Telegram": "присоединился(лась) к Telegram",
-    "set message auto-delete timer to": "установил(а) таймер автоудаления сообщений на",
-    "disabled message auto-delete timer": "отключил(а) таймер автоудаления сообщений",
-    "scheduled video chat for": "запланировал(а) видеочат на",
-    "scheduled video chat": "запланировал(а) видеочат",
+    def load_language(self, lang_code: str):
+        lang_dict = self._ensure_language_loaded(lang_code)
+        self._current_lang = lang_code
+        self._translations = lang_dict
+        logger.info(f"Loaded language '{lang_code}' with {len(lang_dict)} translation keys")
 
-    "Analysis": "Анализ",
-    "Tokens:": "Токены:",
-    "Recalculate": "Пересчитать",
-    "Installation Manager": "Менеджер установки",
-    "Help": "Справка",
-    "Tokens": "Токены",
-    "Characters": "Символы",
-    "Characters:": "Символы:",
-    "Calculate": "Посчитать",
-    "{unit} calculated: {count}": "{unit} подсчитано: {count}",
-    "Tokens calculated: {count}": "Токены подсчитаны: {count}",
-    "Characters calculated: {count}": "Символы подсчитаны: {count}",
-    "Token Analysis": "Анализ токенов",
-    "Calculating...": "Подсчёт...",
-    "Character Count": "Количество символов",
-    "Token analysis feature is under development.": "Функция анализа токенов находится в разработке.",
-    "Tokens calculated: {count}": "Токенов подсчитано: {count}",
-    "N/A": "Н/Д",
-    "Tokens per Participant": "Токены по участникам",
-    "Analyzing tokens per participant...": "Анализ токенов по участникам...",
-    "Analysis failed or no data found.": "Анализ не удался или данные не найдены.",
-    "Tokenizer Error": "Ошибка токенизатора",
-    "Tokenizer not ready.": "Токенизатор не готов.",
-    "Tokenizer not ready. Please run total calculation first.": "Токенизатор не готов. Сначала выполните общий подсчет.",
-    "Token Analysis by Date": "Анализ токенов по датам",
-    "Please calculate total tokens first by clicking 'Recalculate'.": "Пожалуйста, сначала рассчитайте общее число токенов, нажав 'Пересчитать'.",
-    "Analyzing token distribution by date...": "Анализ распределения токенов по датам...",
-    "Rendering chart...": "Отрисовка диаграммы...",
+    def _resolve_raw(self, key: str, lang_code: str) -> str | None:
+        lang_dict = self._ensure_language_loaded(lang_code)
+        en_dict = self._ensure_language_loaded("en")
 
-    "Save": "Сохранить",
-    "Close": "Закрыть",
-    "Save filter settings for export": "Сохранить настройки фильтра для экспорта",
-    "Filter settings saved. They will be applied on the next export.": "Настройки фильтра сохранены. Они будут применены при следующем экспорте.",
-    "Filter settings cleared.": "Настройки фильтра очищены.",
-    "Year": "Год",
-    "Month": "Месяц",
-    "Day": "День",
-    "Others": "Прочее",
-    "Remaining": "Осталось",
-    "Total": "Всего",
-    "Total Characters": "Всего символов",
-    "Calendar View": "Просмотр в календаре",
-    "Calendar": "Календарь",
-    "Date": "Дата",
+        if key in lang_dict:
+            return lang_dict[key]
+        if key in en_dict:
+            return en_dict[key]
 
-    "Analyzing token distribution...": "Анализ распределения токенов...",
-    "Analysis complete.": "Анализ завершён.",
-    "HF transformers not found": "Библиотека HuggingFace 'transformers' не найдена. Выполните 'pip install transformers sentencepiece'",
-    "HF transformers not found. Skipping.": "HuggingFace 'transformers' не найдена. Пропускаем.",
-    "Downloading tokenizer": "Скачивание модели токенизатора (первый раз)...",
-    "Initialization complete": "Инициализация завершена!",
-    "Error: {error}": "Ошибка: {error}",
-    "File not found": "Файл не найден.",
+        missing_marker = (lang_code, key)
+        if missing_marker not in self._missing_keys_logged:
+            self._missing_keys_logged.add(missing_marker)
+            logger.warning(f"Missing translation key '{key}' for language '{lang_code}'")
+        return None
 
-    "{count} others": "{count} прочих",
-    "click to go up": "(нажмите для возврата)",
+    def get(self, key: str, lang_code: str, *args, **kwargs) -> str:
+        translated = self._resolve_raw(key, lang_code)
+        if translated is None:
+            translated = key
 
-    "Model not found in cache. Skipping.": "Модель не найдена в кэше. Пропускаем.",
-    "Warning": "Внимание",
-    "Please enter a model name": "Пожалуйста, введите имя модели",
-    "Downloading tokenizer model '{model}'...": "Загрузка модели токенизатора '{model}'...",
-    "Tokenizer '{model}' loaded successfully!": "Токенизатор '{model}' успешно загружен!",
-    "Error loading tokenizer: {error}": "Ошибка загрузки токенизатора: {error}",
-    "Failed to load tokenizer: {error}": "Не удалось загрузить токенизатор: {error}",
-    "Executing: {command}": "Выполнение: {command}",
-    "Operation completed.": "Операция завершена.",
-    "Tokens: {count}": "Токенов: {count}",
-    "Characters: {count}": "Символов: {count}",
-    "System Prompt": "Системный промпт",
-    "Tool Calls": "Вызовы инструментов",
+        if args or kwargs:
+            try:
+                return translated.format(*args, **kwargs)
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to format translation key '{key}' for lang '{lang_code}': {exc}"
+                )
+                return translated
+        return translated
 
-    "Export completed successfully.": "Экспорт успешно выполнен.",
-    "Done": "Готово",
-    "Building analysis tree...": "Построение дерева анализа...",
-    "Building analysis tree for {count} {unit}": "Построение дерева анализа для {count} {unit}",
-    "Failed to build analysis tree": "Не удалось построить дерево анализа",
-    "Start time: {time}": "Время начала: {time}",
-    "Created time intervals:": "Создано временных промежутков:",
-    "Years: {count}": "Годы: {count}",
-    "Months: {count}": "Месяцы: {count}",
-    "Days: {count}": "Дни: {count}",
-    "Year {year}: {count} {unit} ({percent:.1f}%)": "{year} год: {count} {unit} ({percent:.1f}%)",
-    "Month {month} {year}: {count} {unit} ({percent:.1f}% of year)": "{month} {year}: {count} {unit} ({percent:.1f}% от года)",
-    "Day {day} {month} {year}: {count} {unit} ({percent:.1f}% of month)": "{day} {month} {year}: {count} {unit} ({percent:.1f}% от месяца)",
-    "Creating tree nodes...": "Создание дерева узлов...",
-    "Analysis tree built successfully": "Дерево анализа построено успешно",
-    "Final structure: {name} ({count} years)": "Итоговая структура: {name} ({count} лет)",
-    "Execution time: {time:.3f} seconds": "Время выполнения: {time:.3f} секунд",
-    "End time: {time}": "Время завершения: {time}",
-    "Worker: Starting tree construction for {count} tokens": "Worker: Начало построения дерева для {count} токенов",
-    "Worker: Start time: {time}": "Worker: Время начала: {time}",
-    "Worker: Creating TokenAnalyzer...": "Worker: Создание TokenAnalyzer...",
-    "Worker: Starting analysis tree construction...": "Worker: Запуск построения дерева анализа...",
-    "Worker: Tree built successfully": "Worker: Дерево построено успешно",
-    "Worker: Final structure: {name} with {count} child nodes": "Worker: Итоговая структура: {name} с {count} дочерними узлами",
-    "Worker: Execution time: {time:.3f} seconds": "Worker: Время выполнения: {time:.3f} секунд",
-    "Worker: End time: {time}": "Worker: Время завершения: {time}",
-    "Worker: Sending analysis result...": "Worker: Отправка результата анализа...",
-    "Using cached analysis tree.": "Используется кешированное дерево анализа.",
-    "Message filtering: no disabled nodes, returning all messages": "Фильтрация сообщений: отключенных узлов нет, возвращаем все сообщения",
-    "Starting message filtering by {count} disabled nodes": "Начало фильтрации сообщений по {count} отключенным узлам",
-    "Disabled date: {date} (node: {name}, value: {value:.1f})": "Отключена дата: {date} (узел: {name}, значение: {value:.1f})",
-    "Node '{name}' contains {count} aggregated subnodes:": "Узел '{name}' содержит {count} агрегированных подузлов:",
-    "Child {index}: '{name}': {value:.1f} tokens": "Дочерний {index}: '{name}': {value:.1f} токенов",
-    "Total disabled dates: {count}": "Всего отключено дат: {count}",
-    "Disabled dates: {dates}": "Отключенные даты: {dates}",
-    "Filtering completed: {original} → {filtered} messages (filtered: {count})": "Фильтрация завершена: {original} → {filtered} сообщений (отфильтровано: {count})",
-    "Starting conversion context creation": "Начало создания контекста конверсии",
+    def get_current_language(self) -> str:
+        return self._current_lang
 
-    "Total messages: {count}": "Всего сообщений: {count}",
-    "Messages with ID: {count}": "Сообщений с ID: {count}",
-    "Profile: {profile}": "Профиль: {profile}",
-    "Processing personal profile...": "Обработка персонального профиля...",
-    "Found authors: {count}": "Найдено авторов: {count}",
-    "Author {name} ({id}): {count} messages": "Автор {name} ({id}): {count} сообщений",
-    "My ID: {id} ({name})": "Мой ID: {id} ({name})",
-    "Partner ID: {id} ({name})": "ID партнера: {id} ({name})",
-    "Processing posts profile...": "Обработка профиля постов...",
-    "Channel name: {name}": "Имя канала: {name}",
-    "Main post ID: {id}": "ID главного поста: {id}",
-    "Conversion context created successfully": "Контекст конверсии создан успешно",
-    "Starting text generation for export": "Начало генерации текста для экспорта",
-    "HTML mode: {mode}": "HTML режим: {mode}",
-    "Applying filters: {yes_no}": "Применение фильтров: {yes_no}",
-    "Disabled nodes: {count}": "Отключено узлов: {count}",
-    "Disabled node: {name} (value: {value:.1f})": "Отключен узел: {name} (значение: {value:.1f})",
-    "... and {count} more nodes": "... и еще {count} узлов",
-    "Title: {title} - {name}": "Заголовок: {title} - {name}",
-    "Participants: {my_name} ({my_full}), {partner_name} ({partner_full})": "Участники: {my_name} ({my_full}), {partner_name} ({partner_full})",
-    "Total messages to process: {count}": "Всего сообщений для обработки: {count}",
-    "Messages after filtering: {count}": "Сообщений после фильтрации: {count}",
-    "First date: {date}": "Первая дата: {date}",
-    "Processing completed: {count} messages processed": "Обработка завершена: {count} сообщений обработано",
-    "Output text size: {size} characters": "Размер выходного текста: {size} символов",
-    "Starting chart construction for node '{name}'": "Начало построения диаграммы для узла '{name}'",
-    "Root node has no children": "Корневой узел не имеет дочерних элементов",
-    "Chart built successfully": "Диаграмма построена успешно",
-    "Right click on node: '{name}'": "Правый клик по узлу: '{name}'",
-    "Enabled {count} days for '{name}'": "Включено {count} дней для '{name}'",
-    "Disabled {count} days for '{name}'": "Выключено {count} дней для '{name}'",
-    "Left click on node: '{name}'": "Левый клик по узлу: '{name}'",
-    "Enabled {count} days for node '{name}'.": "Включено {count} дней для узла '{name}'.",
-    "Disabled {count} days for node '{name}'.": "Выключено {count} дней для узла '{name}'.",
-    "Node aggregation: '{name}' (Force full detail: {force})": "Агрегация узла '{name}' (Форсировать детализацию: {force})",
-    "Node '{name}' has no children or value is 0": "Узел '{name}' не имеет дочерних элементов или значение равно 0",
-    "Maximum detail: showing all {count} children": "Максимальная детализация: показываем всех {count} детей",
-    "Smart limit: share {share:.2%}, child limit: {limit} (from {min} to {max})": "Умный лимит: доля {share:.2%}, лимит детей: {limit} (от {min} до {max})",
-    "Smart limit: top level node, child limit: {limit}": "Умный лимит: узел верхнего уровня, лимит детей: {limit}",
-    "Aggregation threshold: {threshold:.1f} tokens ({percent}% of {value:.1f})": "Порог агрегации: {threshold:.1f} токенов ({percent}% от {value:.1f})",
-    "Analyzing {count} child nodes...": "Анализ {count} дочерних узлов...",
-    "Showing '{name}': {value:.1f} tokens (>= threshold and in top {limit})": "Показываем '{name}': {value:.1f} токенов (>= порога и в топ-{limit})",
-    "Hiding '{name}': {value:.1f} tokens (< threshold {threshold:.1f})": "Скрываем '{name}': {value:.1f} токенов (< порога {threshold:.1f})",
-    "Hiding '{name}': {value:.1f} tokens (outside top {limit})": "Скрываем '{name}': {value:.1f} токенов (вне топ-{limit})",
-    "Created '{name}' node with {count} hidden nodes (total value: {value:.1f})": "Создан узел '{name}' с {count} скрытыми узлами (общее значение: {value:.1f})",
-    "Contents of '{name}' node:": "Содержимое узла '{name}':",
-    "Total showing: {count} nodes + 1 aggregated": "Итого показываем: {count} узлов + 1 агрегированный",
-    "Showing all {count} nodes (aggregation not needed)": "Показываем все {count} узлов (агрегация не требуется)",
-    "Aggregated {count} subnodes": "Агрегировано {count} подузлов",
-    "GEOMETRY: Constants: CENTER_HOLE_RADIUS={radius}, RING_WIDTH={width}, MAX_DEPTH={depth}": "ГЕОМЕТРИЯ: Константы: CENTER_HOLE_RADIUS={radius}, RING_WIDTH={width}, MAX_DEPTH={depth}",
-    "--- [ Starting chart construction for node '{name}' ] ---": "--- [ Начало построения диаграммы для узла '{name}' ] ---",
-    "--- [ ✅ Chart for '{name}' built successfully ] ---": "--- [ ✅ Диаграмма для '{name}' построена успешно ] ---",
-    "AI Component Management": "Управление ИИ-компонентами",
-    "Status:": "Статус:",
-    "Loaded and active": "Загружено и активно",
-    "Not available": "Недоступно",
-    "Actions": "Действия",
-    "Install / Update": "Установить / Обновить",
-    "Remove": "Удалить",
-    "Load AI components on startup": "Загружать ИИ при запуске",
-    "Configuration": "Конфигурация",
-    "Hugging Face Model:": "Модель Hugging Face:",
-    "Reset to Default": "Сбросить",
-    "Terminal Output": "Вывод терминала",
-    "Installed. Please restart the application to use.": "Установлено. Пожалуйста, перезапустите приложение для использования.",
-    "Please restart the application for the changes to take effect.": "Пожалуйста, перезапустите приложение, чтобы изменения вступили в силу.",
-    "Close": "Закрыть",
-    "Executing: {command}": "Выполняется: {command}",
-    "Operation successful.": "Операция выполнена успешно.",
-    "Operation failed with code: {code}": "Операция не удалась с кодом: {code}",
-    "Installed (active)": "Установлено (активно)",
-    "Installed (restart required)": "Установлено (требуется перезапуск)",
-    "Installed (model not in cache)": "Установлено (модель не в кэше)",
-    "Not installed": "Не установлено",
-    "Loaded model: {model}": "Загруженная модель: {model}",
-    "Remove Model from Cache": "Удалить модель из кэша",
-    "Scanning cache for model...": "Сканирование кэша...",
-    "Model not found in cache.": "Модель не найдена в кэше.",
-    "Found model, preparing to delete...": "Модель найдена, подготовка к удалению...",
-    "Will free: {size}": "Будет освобождено: {size}",
-    "Deleting model from cache...": "Удаление модели из кэша...",
-    "Model cache removed successfully.": "Кэш модели успешно удален.",
-    "Refusing to install packages into the system Python. Please run this application from a virtual environment (venv).": "Отказ от установки пакетов в системный Python. Пожалуйста, запустите это приложение из виртуального окружения (venv).",
-    "Preparing to launch": "Подготовка к запуску",
-    "None": "Нет",
-    "Error: Model name cannot be empty": "Ошибка: Имя модели не может быть пустым",
-    "Load Model": "Загрузить модель",
-    "Install/Update transformers library": "Установить/Обновить библиотеку transformers",
-    "This action requires restart": "Это действие требует перезапуска",
-    "Removes the model specified in the configuration from the local cache to free up disk space.": "Удаляет модель, указанную в конфигурации, из локального кэша для освобождения дискового пространства.",
-    "Library Status:": "Статус библиотеки:",
-    "Loaded Model:": "Загруженная модель:",
-    "Installed (model not loaded)": "Установлено (модель не загружена)",
-    "in cache": "в кэше",
-    "Restart Required": "Требуется перезапуск",
-    "Library installation completed successfully!": "Библиотека успешно установлена!",
-    "Please restart the application for changes to take effect.": "Пожалуйста, перезапустите приложение для применения изменений.",
-    "On": "Вкл",
-    "Off": "Выкл",
-    "Tokens reset": "Токены сброшены",
-    "Characters reset": "Символы сброшены",
+    def set_language(self, lang_code: str):
+        if lang_code != self._current_lang:
+            self.load_language(lang_code)
 
-    "gifted": "подарил(а)",
-    "star_form1": "звезду",
-    "star_form2": "звезды",
-    "star_form5": "звёзд",
-    "won_prize_from": "выиграл(а) приз от «{actor}»: {count} ★ {stars_text}",
-    "updated_tasks_in_list": "обновил(а) задачи в списке дел",
-    "added_tasks": "добавил(а) задачи",
+_manager = TranslationManager()
 
-    "Tkonverter Help": "Справка по Tkonverter",
-    "Help Section: Introduction": "Введение",
-    "Help Section: File Management": "Управление файлами",
-    "Help Section: Conversion Options": "Настройки конвертации",
-    "Help Section: Analysis Tools": "Инструменты анализа",
-    "Help Section: AI Features": "Функции ИИ",
-    "Help Section: Exporting": "Экспорт",
-    "help_intro_html": """
-<body>
-    <h2>Добро пожаловать в Tkonverter!</h2>
-    <p>Это приложение предназначено для конвертации и анализа экспортированных чатов Telegram, в первую очередь для предварительной обработки данных для больших языковых моделей (LLM).</p>
-    <p>Используйте навигацию слева, чтобы узнать о конкретных функциях.</p>
-</body>
-""",
-    "help_files_html": """
-<body>
-    <h2>Управление файлами</h2>
-    <p>Для начала работы <b>перетащите</b> ваш файл <code>result.json</code> из экспорта данных Telegram в главное окно приложения.</p>
-</body>
-""",
-    "help_conversion_html": """
-<body>
-    <h2>Настройки конвертации</h2>
-    <h3>Профили</h3>
-    <p>Профиль влияет на форматирование сообщений. В большинстве случаев опция <b>Автоопределение профиля</b> (в Настройках) работает лучше всего.</p>
-    <ul>
-        <li><b>Групповой чат:</b> Стандартное форматирование для чатов с несколькими участниками.</li>
-        <li><b>Личная переписка:</b> Форматирует диалог от лица "Я" и "Собеседник". Вы можете задать свои имена для этих ролей.</li>
-        <li><b>Канал:</b> Упрощенный формат, подходящий для постов в канале.</li>
-        <li><b>Посты и комментарии:</b> Специальный режим для каналов с включенными комментариями. Считает первое сообщение главным постом, а последующие — ответами на него.</li>
-    </ul>
-    <h3>Ключевые опции</h3>
-    <ul>
-        <li><b>Отображать реакции:</b> Включает в вывод реакции на сообщения (например, 👍 2).</li>
-        <li><b>Оптимизация:</b> Режим для каналов, который группирует последовательные сообщения от одного автора для экономии токенов.</li>
-    </ul>
-</body>
-""",
-    "help_analysis_html": """
-<body>
-    <h2>Инструменты анализа</h2>
-    <p>Перед использованием инструментов анализа необходимо загрузить чат и нажать <b>"Пересчитать"</b> для обработки данных.</p>
-    <h3>Диаграмма анализа (Sunburst)</h3>
-    <ul>
-        <li><b>Левый клик:</b> Приблизить сегмент (например, нажмите на год, чтобы увидеть месяцы).</li>
-        <li><b>Правый клик:</b> Переключить сегмент и все его дочерние элементы как <b>отключенные</b> для экспорта. Отключенные сегменты станут серыми. Это позволяет исключить определённые периоды из итогового файла.</li>
-        <li><b>Клик по центру:</b> Вернуться на уровень выше.</li>
-    </ul>
-    <h3>Календарь</h3>
-    <ul>
-        <li><b>Левый клик по дню:</b> Посмотреть сообщения за этот день в панели справа.</li>
-        <li><b>Левый клик по месяцу/году:</b> Приблизить этот месяц/год.</li>
-        <li><b>Правый клик по дню/месяцу/году:</b> Переключить весь этот период как <b>отключенный</b> для экспорта.</li>
-        <li><b>Клик по заголовку (напр., "Август 2025"):</b> Вернуться на уровень выше (напр., к просмотру года).</li>
-    </ul>
-</body>
-""",
-    "help_ai_html": """
-<body>
-    <h2>Функции ИИ и Токенизатор</h2>
-    <p>Tkonverter может рассчитать точное количество токенов, которое займёт ваш чат для конкретной ИИ-модели. Для этого требуется библиотека <b>transformers</b>.</p>
-    <ul>
-        <li>Нажмите на иконку <b>Загрузки</b>, чтобы открыть <b>Менеджер установки</b>.</li>
-        <li>Там вы можете установить необходимые библиотеки и скачать модели токенизаторов с Hugging Face.</li>
-        <li>Как только токенизатор будет загружен, анализ переключится со счёта символов на счёт токенов.</li>
-    </ul>
-</body>
-""",
-    "help_export_html": """
-<body>
-    <h2>Экспорт</h2>
-    <p>Нажмите <b>"Сохранить в файл..."</b>, чтобы открыть диалог экспорта.</p>
-    <p>Итоговый файл <code>.txt</code> будет учитывать все выбранные вами опции форматирования и любые фильтры по датам, которые вы применили с помощью Диаграммы анализа или Календаря.</p>
-</body>
-""",
-}
-
-translations = {
-    "en": en_translations,
-    "ru": ru_translations,
-}
+def tr(key: str, language: str | None = None, *args, **kwargs) -> str:
+    lang_code = language or _manager.get_current_language()
+    return _manager.get(key, lang_code, *args, **kwargs)
 
 def set_language(lang_code: str):
-    global _current_language
-    _current_language = lang_code if lang_code in translations else "en"
+    _manager.set_language(lang_code)
 
 def get_language() -> str:
-    return _current_language
-
-def tr(key: str, **kwargs) -> str:
-    lang_dict = translations.get(_current_language, en_translations)
-    translated_text = lang_dict.get(key, key)
-    if kwargs:
-        try:
-            return translated_text.format(**kwargs)
-        except (KeyError, IndexError):
-            return translated_text
-    return translated_text
+    return _manager.get_current_language()

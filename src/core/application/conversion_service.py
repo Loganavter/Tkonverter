@@ -1,32 +1,31 @@
-"""
-Service for converting chats to text format.
 
-Handles conversion of domain chat objects to readable text
-using configured formatters and conversion strategies.
-"""
 
-import logging
-from typing import Any, Dict, Optional, Set
+from typing import Any, Callable, Dict, Optional, Set
 
-from core.analysis.tree_analyzer import TreeNode
-from core.conversion.context import ConversionContext
-from core.conversion.domain_adapters import (
+from src.core.analysis.tree_analyzer import TreeNode
+from src.core.application.chat_memory_service import ChatMemoryService
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.domain_adapters import (
     chat_to_dict,
     create_message_map,
     detect_user_ids_for_personal_chat,
     get_main_post_id,
 )
-from core.conversion.formatters.service_formatter import format_service_message
-from core.conversion.main_converter import generate_plain_text
-from core.conversion.message_formatter import format_message
-from core.domain.models import Chat, Message, ServiceMessage
-
-logger = logging.getLogger(__name__)
+from src.core.conversion.formatters.service_formatter import format_service_message
+from src.core.conversion.main_converter import generate_plain_text
+from src.core.conversion.main_converter import _build_plain_text_segments
+from src.core.conversion.main_converter import _initialize_context
+from src.core.conversion.message_formatter import format_message
+from src.core.domain.models import Chat, Message, ServiceMessage
 
 class ConversionService:
-    """Service for converting chats to text."""
 
-    def __init__(self, use_modern_formatters: bool = True):
+    def __init__(
+        self,
+        use_modern_formatters: bool = True,
+        modern_converter_factory: Callable[[], Any] | None = None,
+        chat_memory_service: Optional[ChatMemoryService] = None,
+    ):
         """
         Initializes conversion service.
 
@@ -36,16 +35,16 @@ class ConversionService:
         """
         self._use_modern_formatters = use_modern_formatters
         self._modern_converter = None
+        self._chat_memory_service = chat_memory_service
 
         if use_modern_formatters:
             try:
-                from core.conversion.formatters.modern.main_converter import (
-                    ModernChatConverter,
-                )
-                self._modern_converter = ModernChatConverter()
-
+                if modern_converter_factory is not None:
+                    self._modern_converter = modern_converter_factory()
+                else:
+                    self._use_modern_formatters = False
             except ImportError as e:
-                logger.warning(f"ConversionService: Modern formatters not available, falling back to legacy: {e}")
+
                 self._use_modern_formatters = False
 
     def convert_to_text(
@@ -77,6 +76,56 @@ class ConversionService:
             )
         else:
             chat_dict = chat_to_dict(chat)
+            if (
+                not html_mode
+                and self._chat_memory_service is not None
+                and chat.chat_id is not None
+            ):
+                memory = self._chat_memory_service.load_memory(chat.chat_id)
+                memory_disabled_dates = {
+                    str(d) for d in memory.get("disabled_dates", []) if isinstance(d, str)
+                }
+                if memory_disabled_dates:
+                    filtered_messages = []
+                    for msg in chat_dict.get("messages", []):
+                        msg_date = str(msg.get("date", ""))[:10]
+                        if msg_date and msg_date in memory_disabled_dates:
+                            continue
+                        filtered_messages.append(msg)
+                    chat_dict = dict(chat_dict)
+                    chat_dict["messages"] = filtered_messages
+
+                day_overrides = memory.get("day_overrides", {}) or {}
+                if isinstance(day_overrides, dict) and day_overrides:
+                    segments, _ = _build_plain_text_segments(
+                        data=chat_dict,
+                        config=config,
+                        html_mode=False,
+                        disabled_nodes=disabled_nodes,
+                    )
+                    context = _initialize_context(chat_dict, config)
+                    merged_parts = []
+                    replaced_dates = set()
+                    for date_key, part in segments:
+                        if (
+                            isinstance(date_key, str)
+                            and date_key in day_overrides
+                            and isinstance(day_overrides.get(date_key), dict)
+                        ):
+                            if date_key in replaced_dates:
+                                continue
+                            override_text = str(
+                                day_overrides[date_key].get("edited_text", "")
+                            ).strip()
+                            if override_text and context.anonymizer:
+                                override_text = context.anonymizer.process_text(override_text)
+                            if override_text:
+                                merged_parts.append(override_text + "\n")
+                            replaced_dates.add(date_key)
+                            continue
+                        merged_parts.append(part)
+                    return "".join(merged_parts).strip() + "\n"
+
             return generate_plain_text(
                 chat_dict, config, html_mode=html_mode, disabled_nodes=disabled_nodes
             )
@@ -105,7 +154,7 @@ class ConversionService:
 
         context = self._create_conversion_context(chat, config)
 
-        from core.conversion.domain_adapters import message_to_dict
+        from src.core.conversion.domain_adapters import message_to_dict
 
         msg_dict = message_to_dict(message)
         prev_msg_dict = message_to_dict(previous_message) if previous_message else None
@@ -128,7 +177,7 @@ class ConversionService:
         """
         context = self._create_conversion_context(chat, config)
 
-        from core.conversion.domain_adapters import service_message_to_dict
+        from src.core.conversion.domain_adapters import service_message_to_dict
 
         service_dict = service_message_to_dict(service_message)
 
@@ -136,18 +185,9 @@ class ConversionService:
         return result or ""
 
     def generate_preview(self, config: Dict[str, Any]) -> tuple[str, str]:
-        """
-        Generates preview for given configuration.
 
-        Args:
-            config: Configuration for preview
-
-        Returns:
-            tuple[str, str]: (html_text, preview_title)
-        """
-
-        from resources.translations import tr
-        return f"<p>{tr('Preview is generated from loaded chat.')}</p>", tr("Preview")
+        from src.resources.translations import tr
+        return f"<p>{tr('preview.generated')}</p>", tr("common.preview")
 
     def _create_conversion_context(
         self, chat: Chat, config: Dict[str, Any]
@@ -182,19 +222,9 @@ class ConversionService:
         return context
 
     def get_supported_profiles(self) -> list[str]:
-        """Returns list of supported conversion profiles."""
         return ["group", "personal", "posts", "channel"]
 
     def validate_config(self, config: Dict[str, Any]) -> list[str]:
-        """
-        Validates conversion configuration.
-
-        Args:
-            config: Configuration to check
-
-        Returns:
-            list[str]: List of found issues
-        """
         issues = []
 
         required_fields = ["profile", "show_time", "show_reactions"]
@@ -215,12 +245,19 @@ class ConversionService:
             "show_links",
             "show_tech_info",
             "show_service_notifications",
+            "anonymizer_enabled",
+            "show_activity_analysis",
         ]
         for field in boolean_fields:
             if field in config and not isinstance(config[field], bool):
                 issues.append(f"Field {field} must be boolean")
 
-        string_fields = ["my_name", "partner_name", "streak_break_time"]
+        string_fields = [
+            "my_name",
+            "partner_name",
+            "streak_break_time",
+            "anonymizer_preset_id",
+        ]
         for field in string_fields:
             if field in config and not isinstance(config[field], str):
                 issues.append(f"Field {field} must be string")
@@ -235,7 +272,6 @@ class ConversionService:
         return issues
 
     def get_default_config(self) -> Dict[str, Any]:
-        """Returns default configuration."""
         return {
             "profile": "group",
             "show_time": True,
@@ -249,5 +285,8 @@ class ConversionService:
             "show_links": True,
             "show_tech_info": True,
             "show_service_notifications": True,
+            "anonymizer_enabled": False,
+            "anonymizer_preset_id": "default",
+            "show_activity_analysis": False,
         }
 

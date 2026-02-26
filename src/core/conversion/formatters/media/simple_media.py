@@ -1,9 +1,6 @@
-import logging
-from core.conversion.context import ConversionContext
-from core.conversion.utils import format_duration
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.utils import format_duration
+from src.resources.translations import tr
 
 BAD_FILENAME = "(File not included. Change data exporting settings to download.)"
 
@@ -129,6 +126,9 @@ def format_location(location_info: dict, context: ConversionContext) -> str:
     lon = location_info.get("longitude")
 
     if not context.config.get("show_tech_info", True):
+        return f"{tr('[Geoposition]')}"
+
+    if lat is None or lon is None:
         return f"{tr('[Geoposition]')}"
 
     return f"{tr('[Geoposition: {lat:.6f}, {lon:.6f}]').format(lat=lat, lon=lon)}"

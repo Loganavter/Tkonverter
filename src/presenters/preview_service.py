@@ -1,32 +1,14 @@
-import logging
 from typing import Dict, Any
 
-from core.conversion.main_converter import generate_plain_text
-from resources.translations import tr
-
-logger = logging.getLogger(__name__)
+from src.core.conversion.main_converter import generate_plain_text
+from src.resources.translations import tr
 
 class PreviewService:
-    """Service for generating preview data and HTML."""
 
     def __init__(self):
-        self.logger = logging.getLogger("Preview")
-        self.logger.setLevel(logging.ERROR)
-
-        if not self.logger.handlers:
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                datefmt='%H:%M:%S'
-            )
-
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(logging.ERROR)
-            console_handler.setFormatter(formatter)
-
-            self.logger.addHandler(console_handler)
+        pass
 
     def generate_preview_data(self, config: dict) -> dict:
-        """Generates hardcoded preview data based on configuration."""
         profile = config.get("profile", "group")
 
         my_name = config.get("my_name", tr("Me"))
@@ -122,7 +104,7 @@ class PreviewService:
             partner_alias = config.get("partner_name", tr("Sister"))
 
             preview_data = {
-                "name": "Alice",
+                "name": tr("Preview: Alice"),
                 "messages": [
                     {
                         "id": 1,
@@ -248,7 +230,6 @@ class PreviewService:
         return preview_data
 
     def generate_preview_text(self, config: dict) -> tuple[str, str]:
-        """Generates preview text and title based on configuration."""
         try:
             preview_data = self.generate_preview_data(config)
             raw_text = generate_plain_text(preview_data, config, html_mode=True)
@@ -269,20 +250,12 @@ class PreviewService:
             return raw_text, title
 
         except Exception as e:
-            self.logger.error(f"=== PREVIEW GENERATION ERROR ===")
-            self.logger.error(f"Error type: {type(e).__name__}")
-            self.logger.error(f"Error message: {e}")
             import traceback
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
 
             error_message = f"Error: {e}"
             return error_message, "Preview Error"
 
     def get_longest_preview_html(self, config: dict) -> str:
-        """
-        Generates HTML for the longest static example ('posts').
-        Used to calculate window height initially.
-        """
         try:
             config_copy = config.copy()
             config_copy["profile"] = "posts"
@@ -294,9 +267,5 @@ class PreviewService:
             return result_html
 
         except Exception as e:
-            self.logger.error(f"=== LONGEST PREVIEW GENERATION ERROR ===")
-            self.logger.error(f"Error type: {type(e).__name__}")
-            self.logger.error(f"Error message: {e}")
             import traceback
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return ""

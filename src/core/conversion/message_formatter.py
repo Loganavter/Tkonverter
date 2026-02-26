@@ -1,14 +1,14 @@
 import re
 from datetime import datetime
 
-from core.conversion.context import ConversionContext
-from core.conversion.formatters.media_formatter import format_media
-from core.conversion.utils import (
+from src.core.conversion.context import ConversionContext
+from src.core.conversion.formatters.media_formatter import format_media
+from src.core.conversion.utils import (
     process_text_to_plain,
     sanitize_forward_name,
     truncate_name,
 )
-from resources.translations import tr
+from src.resources.translations import tr
 
 def _parse_time_to_seconds(time_str: str) -> int:
     if not re.match(r"^\d{1,2}:\d{2}$", time_str):
@@ -82,6 +82,19 @@ def _should_print_header(
         return True
 
     return True
+
+def _append_via_bot(msg: dict, lines: list) -> None:
+    if via_bot_id := msg.get("via_bot_id"):
+        lines.append(f"  ({tr('via bot')} {via_bot_id})\n")
+
+def _append_forwarded_from(msg: dict, context: ConversionContext, lines: list) -> None:
+    forwarded_from_raw = msg.get("forwarded_from")
+    if not forwarded_from_raw or msg.get("showForwardedAsOriginal"):
+        return
+    if context.config.get("profile") == "posts":
+        return
+    clean_name = truncate_name(sanitize_forward_name(forwarded_from_raw), context=context)
+    lines.append(f"  [{tr('forwarded from')} {clean_name}]\n")
 
 def _format_header(msg: dict, context: ConversionContext) -> str:
     author = context.get_author_name(msg)
@@ -180,6 +193,45 @@ def _format_reply_markup(msg: dict, context: ConversionContext) -> str:
 
     return "\n".join(lines) + "\n" if len(lines) > 1 else ""
 
+def _normalize_placeholder_text(
+    content: str, msg: dict, media_info: str
+) -> str:
+    """
+    Normalize known Telegram/sample placeholder captions.
+
+    These strings are often auto-generated labels in exported examples and
+    should not appear as raw English text in localized output.
+    """
+    if not content:
+        return content
+
+    normalized = content.strip().lower()
+
+    if normalized == "edited forwarded reply":
+        return tr("Edited forwarded reply")
+
+    if normalized == "photo" and media_info:
+        return ""
+
+    if normalized == "live location" and media_info:
+        return ""
+
+    if normalized == "empty geopoint":
+        return tr("[Geoposition]")
+
+    if normalized == "invoice" and msg.get("invoice_information"):
+        return ""
+
+    if normalized == "paid media" and ("paid_stars_amount" in msg or media_info):
+        return ""
+
+    if normalized in {"unavailable file sample", "unavaible file sample"} and msg.get(
+        "file"
+    ):
+        return ""
+
+    return content
+
 def format_message(
     msg: dict,
     prev_msg: dict | None,
@@ -194,20 +246,18 @@ def format_message(
 
     if print_header:
         lines.append(_format_header(msg, context))
+        _append_via_bot(msg, lines)
+        _append_forwarded_from(msg, context, lines)
+        lines.append(_format_reply(msg, context))
+    else:
 
-        if via_bot_id := msg.get("via_bot_id"):
-            lines.append(f"  ({tr('via bot')} {via_bot_id})\n")
-
-        forwarded_from_raw = msg.get("forwarded_from")
-        if forwarded_from_raw and not msg.get("showForwardedAsOriginal"):
-            if context.config["profile"] != "posts":
-                clean_name = truncate_name(sanitize_forward_name(forwarded_from_raw), context=context)
-                lines.append(f"  [{tr('forwarded from')} {clean_name}]\n")
-
+        _append_via_bot(msg, lines)
+        _append_forwarded_from(msg, context, lines)
         lines.append(_format_reply(msg, context))
 
-    content = process_text_to_plain(msg.get("text", ""), context)
     media_info = format_media(msg, context)
+    content = process_text_to_plain(msg.get("text", ""), context)
+    content = _normalize_placeholder_text(content, msg, media_info)
 
     body_parts = []
     if content:

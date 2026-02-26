@@ -1,37 +1,24 @@
-from PyQt6.QtCore import QRectF, Qt, QTime, pyqtSignal, QEvent
+from PyQt6.QtCore import QRectF, Qt, QTime, pyqtSignal, QEvent, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QHBoxLayout, QTimeEdit, QWidget
 
-from ui.theme import ThemeManager
-from ui.widgets.helpers.underline_painter import UnderlineConfig, draw_bottom_underline
+from src.shared_toolkit.ui.managers.theme_manager import ThemeManager
+from src.shared_toolkit.ui.widgets.helpers.underline_painter import UnderlineConfig, draw_bottom_underline
 
 class TimeLineEdit(QWidget):
     RADIUS = 6
     textChanged = pyqtSignal(str)
     editingFinished = pyqtSignal()
+    returnPressed = pyqtSignal()
 
     def __init__(self, initial_time: str = "00:05", parent=None):
         super().__init__(parent)
+        self.setObjectName("TimeLineEdit")
 
         self.theme_manager = ThemeManager.get_instance()
         self.theme_manager.theme_changed.connect(self.update)
 
         self._time_edit = QTimeEdit(self)
-
-        self._time_edit.setStyleSheet(
-            """
-            QTimeEdit {
-                border: none;
-                background: transparent;
-                padding: 6px 2px;
-                font-size: 10pt;
-            }
-            QTimeEdit::up-button, QTimeEdit::down-button {
-                width: 0px;
-                border: none;
-            }
-        """
-        )
 
         self._time_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -41,6 +28,8 @@ class TimeLineEdit(QWidget):
 
         self._time_edit.timeChanged.connect(self._on_internal_time_changed)
         self._time_edit.editingFinished.connect(self.editingFinished)
+
+        self._time_edit.editingFinished.connect(self.returnPressed)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -52,28 +41,24 @@ class TimeLineEdit(QWidget):
         self._time_edit.installEventFilter(self)
 
     def eventFilter(self, obj, event):
-        """Tracks focus events for internal QTimeEdit."""
         if obj is self._time_edit:
             if event.type() == QEvent.Type.FocusIn or event.type() == QEvent.Type.FocusOut:
-                self.update()
+
+                QTimer.singleShot(0, self.update)
         return super().eventFilter(obj, event)
 
     def _on_internal_time_changed(self, time_obj: QTime):
-        """Slot adapter for converting QTime to string."""
         self.textChanged.emit(time_obj.toString("HH:mm"))
 
     def text(self) -> str:
-        """Returns current time as 'HH:mm' string."""
         return self._time_edit.time().toString("HH:mm")
 
     def setText(self, text: str):
-        """Sets time from 'HH:mm' string."""
         time_obj = QTime.fromString(text, "HH:mm")
         if time_obj.isValid():
             self._time_edit.setTime(time_obj)
 
     def selectAll(self):
-        """Selects all text. QTimeEdit does this by sections, we select the first one."""
         self._time_edit.setCurrentSection(QTimeEdit.Section.HourSection)
 
     def paintEvent(self, e):
