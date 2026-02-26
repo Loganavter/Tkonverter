@@ -7,6 +7,13 @@ REQUIREMENTS="$SCRIPT_DIR/requirements-gui.txt"
 
 source "$SCRIPT_DIR/src/shared_toolkit/scripts/common_launcher_funcs.sh"
 
+cleanup_broken_venv() {
+    if [ -d "$VENV_DIR" ]; then
+        log_info "Removing corrupted virtual environment..."
+        rm -rf "$VENV_DIR"
+    fi
+}
+
 enable_logging_action() {
     log_info "Attempting to enable logging..."
     if ensure_venv_is_ready "$VENV_DIR" "$REQUIREMENTS"; then
@@ -16,6 +23,7 @@ enable_logging_action() {
         log_status "Logging settings updated" 0
     else
         log_status "Failed to prepare environment. Aborting." 1
+        cleanup_broken_venv
         exit 1
     fi
 }
@@ -29,6 +37,7 @@ disable_logging_action() {
         log_status "Logging settings updated" 0
     else
         log_status "Failed to prepare environment. Aborting." 1
+        cleanup_broken_venv
         exit 1
     fi
 }
@@ -55,7 +64,7 @@ recreate_action() {
     log_info "Recreating virtual environment..."
     if [ -d "$VENV_DIR" ]; then
         log_info "Removing existing venv in '$VENV_DIR'..."
-        deactivate_venv
+        deactivate_venv 2>/dev/null || true
         if rm -rf "$VENV_DIR"; then
             log_status "Existing venv removed" 0
         else
@@ -63,14 +72,18 @@ recreate_action() {
             exit 1
         fi
     fi
-    ensure_venv_is_ready "$VENV_DIR" "$REQUIREMENTS"
+    if ! ensure_venv_is_ready "$VENV_DIR" "$REQUIREMENTS"; then
+        log_status "Failed to recreate environment." 1
+        cleanup_broken_venv
+        exit 1
+    fi
 }
 
 delete_action() {
     log_info "Starting cleanup..."
     if [ -d "$VENV_DIR" ]; then
         log_info "Removing virtual environment in '$VENV_DIR'..."
-        deactivate_venv
+        deactivate_venv 2>/dev/null || true
         rm -rf "$VENV_DIR"
         log_status "Virtual environment removed" 0
     else
@@ -95,6 +108,7 @@ install)
         log_info "Environment is ready."
     else
         log_status "Failed to set up environment." 1
+        cleanup_broken_venv
         exit 1
     fi
     deactivate_venv
@@ -122,9 +136,8 @@ run)
             shift
             ;;
         *)
-            log_info "Error: Unknown option '$1' for run command."
-            show_help
-            exit 1
+            gui_args+=("$1")
+            shift
             ;;
         esac
     done
@@ -134,17 +147,19 @@ run)
         export DEBUG="$DEBUG_MODE"
         export PYTHONPATH="$SCRIPT_DIR/src:$PYTHONPATH"
         if [[ -n "$THEME_TO_SET" ]]; then
-            APP_THEME="$THEME_TO_SET" PYTHONPATH="$SCRIPT_DIR/src:$PYTHONPATH" python "$APP_MAIN"
-        else
-            PYTHONPATH="$SCRIPT_DIR/src:$PYTHONPATH" python "$APP_MAIN"
+            export APP_THEME="$THEME_TO_SET"
         fi
+        
+        python "$APP_MAIN" "${gui_args[@]}"
         app_exit_code=$?
+        
         deactivate_venv
         log_info "Application completed with exit code: $app_exit_code"
         exit $app_exit_code
     else
         deactivate_venv
         log_status "Failed to prepare environment. Aborting." 1
+        cleanup_broken_venv
         exit 1
     fi
     ;;
