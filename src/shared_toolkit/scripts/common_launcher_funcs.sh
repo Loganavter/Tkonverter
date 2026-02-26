@@ -240,9 +240,16 @@ setup_new_venv() {
         python_executable="python"
     else return 1; fi
 
-    "$python_executable" -m venv "$venv_dir" &&
-        (source "$venv_dir/bin/activate" || source "$venv_dir/Scripts/activate") &&
-        python -m pip install --upgrade pip --disable-pip-version-check --quiet
+    if ! "$python_executable" -m venv "$venv_dir"; then
+        return 1
+    fi
+
+    local venv_python="$venv_dir/bin/python"
+    if [[ ! -x "$venv_python" ]]; then
+        venv_python="$venv_dir/Scripts/python"
+    fi
+
+    "$venv_python" -m pip install --upgrade pip --disable-pip-version-check --quiet
     return $?
 }
 
